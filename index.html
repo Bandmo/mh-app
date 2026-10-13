@@ -1,0 +1,2078 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1220">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon-192.png">
+  <title>Mallets &amp; Horns</title>
+  <style>
+    :root {
+      --bg: #0f1220;
+      --card: #1a1f35;
+      --card-2: #232a47;
+      --text: #f1f3fb;
+      --muted: #9aa3c0;
+      --accent-boss: #e0574f;
+      --accent-exercise: #4f8ff0;
+      --accent-manual: #d6a94f;
+      --accent-done: #3fbf7f;
+      --border: #2c3355;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-tap-highlight-color: transparent;
+    }
+    header {
+      position: sticky; top: 0; z-index: 10;
+      background: var(--bg);
+      padding: 14px 16px 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 {
+      font-size: 18px;
+      margin: 0 0 10px;
+      font-weight: 700;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+    .tab-btn {
+      flex: 1; min-width: 72px; padding: 9px 4px; border-radius: 999px;
+      border: 1px solid var(--border); background: var(--card);
+      color: var(--muted); font-size: 12px; font-weight: 600;
+      text-align: center; cursor: pointer;
+    }
+    .tab-btn.active { background: var(--accent-exercise); color: white; border-color: transparent; }
+    .sort-row { display: flex; gap: 6px; margin-top: 8px; }
+    .sort-btn {
+      flex: 1; padding: 7px 4px; border-radius: 999px;
+      border: 1px solid var(--border); background: var(--card);
+      color: var(--muted); font-size: 11.5px; font-weight: 600;
+      text-align: center; cursor: pointer;
+    }
+    .sort-btn.active { background: var(--accent-manual); color: #14161f; border-color: transparent; }
+    .group-header {
+      font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase;
+      letter-spacing: .04em; margin: 16px 2px 6px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .group-header:first-child { margin-top: 4px; }
+    input[type=text], input[type=search] {
+      width: 100%; padding: 11px 14px; border-radius: var(--radius);
+      border: 1px solid var(--border); background: var(--card); color: var(--text);
+      font-size: 15px;
+    }
+    main { padding: 14px 16px 90px; }
+    .student-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px; margin-top: 12px;
+    }
+    .student-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 12px; cursor: pointer; transition: transform .08s ease; position: relative;
+    }
+    .student-card:active { transform: scale(0.97); }
+    .student-name { font-weight: 700; font-size: 14.5px; margin-bottom: 6px; line-height: 1.2; }
+    .student-meta { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--muted); }
+    .level-pill { background: var(--card-2); border-radius: 999px; padding: 2px 8px; font-weight: 700; color: var(--text); }
+    /* Status lives in the bottom corner as a dot, not a word -- the old
+       BOSS READY pill was wide enough to push the name out of the card.
+       Red = boss is waiting. Amber = bosses are cleared but XP is short,
+       so they need to go back and finish exercises. */
+    .card-dots { position: absolute; bottom: 9px; right: 9px; display: flex; gap: 4px; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 2px var(--card); }
+    .dot.boss { background: var(--accent-boss); }
+    .dot.needsxp { background: var(--accent-manual); }
+    /* Keep the XP figure clear of the dots. */
+    .student-card.has-dots .student-meta { padding-right: 26px; }
+    .empty { color: var(--muted); text-align: center; padding: 30px 10px; font-size: 14px; }
+
+    .sheet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; z-index: 20; }
+    .sheet-overlay.open { display: block; }
+    .sheet {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; background: var(--bg);
+      border-top-left-radius: 20px; border-top-right-radius: 20px;
+      max-height: 88vh; overflow-y: auto; transform: translateY(100%);
+      transition: transform .22s ease; padding: 0 16px 30px; border-top: 1px solid var(--border);
+    }
+    .sheet.open { transform: translateY(0); }
+    .sheet-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 16px auto 14px; }
+    .sheet-top .sheet-handle { margin-top: 0; }
+    /* Name, stats and the two tabs stay put while the checklist scrolls
+       under them -- 200 exercises deep you still know whose sheet this is.
+       The negative margins let the background span the sheet's full width. */
+    .sheet-top {
+      position: sticky; top: 0; z-index: 2; background: var(--bg);
+      margin: 0 -16px 10px; padding: 16px 16px 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sheet-top .stat-row { margin-bottom: 10px; }
+    .sheet-top .section-tabs { margin-bottom: 0; }
+    .sheet-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+    .sheet-header h2 { margin: 0; font-size: 20px; }
+    .header-actions { display: flex; gap: 6px; }
+    .icon-btn {
+      background: var(--card); border: 1px solid var(--border); color: var(--text);
+      border-radius: 999px; width: 32px; height: 32px; font-size: 14px; cursor: pointer;
+    }
+    .stat-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .stat-chip { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px; font-size: 12px; color: var(--muted); }
+    .stat-chip b { color: var(--text); }
+    /* An action that sits in the stat row and reads as a button, not a
+       stat. Kept away from the ✕ so it can't be hit by accident. */
+    .chip-btn {
+      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+      padding: 6px 12px; font-size: 12px; font-weight: 700; color: var(--muted);
+      cursor: pointer; font-family: inherit;
+    }
+    .chip-btn.danger { color: var(--accent-boss); border-color: rgba(224, 87, 79, .55); }
+    .chip-btn:active { transform: scale(.96); }
+    .section-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+    .section-tab {
+      flex: 1; text-align: center; padding: 8px 4px; border-radius: 10px;
+      font-size: 12.5px; font-weight: 700; cursor: pointer;
+      border: 1px solid var(--border); color: var(--muted); background: var(--card);
+    }
+    .section-tab.active.exercise { background: var(--accent-exercise); color: #fff; border-color: transparent; }
+    .section-tab.active.other { background: var(--accent-manual); color: #14161f; border-color: transparent; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .panel-search { margin-bottom: 10px; }
+
+    .level-group {
+      border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; overflow: hidden;
+    }
+    .level-group-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 12px; background: var(--card); cursor: pointer; font-size: 13px; font-weight: 700;
+    }
+
+    /* ---- Book colour, on the folder header only --------------------------
+     * Yellow book headers read amber, Red book headers read crimson, so you
+     * can tell which book a level belongs to while scrolling without opening
+     * it. Deliberately stops at the header: inside the folder, red keeps its
+     * one meaning -- that row is a boss fight.
+     * --------------------------------------------------------------------*/
+    .level-group.book-yellow .level-group-header {
+      background: rgba(214, 169, 79, .18); border-left: 4px solid var(--accent-manual);
+    }
+    .level-group.book-red .level-group-header {
+      background: rgba(224, 87, 79, .18); border-left: 4px solid var(--accent-boss);
+    }
+    .level-group.book-yellow .level-group-header > span:first-child { color: #f0cd7e; }
+    .level-group.book-red .level-group-header > span:first-child { color: #f3a49d; }
+
+    /* The exercise numbers this level covers, so you can jump straight to
+       the right folder instead of opening each one. */
+    .numrange {
+      font-size: 11.5px; font-weight: 700; color: var(--muted);
+      background: var(--card-2); border-radius: 6px; padding: 1px 7px;
+      margin-left: 7px; font-variant-numeric: tabular-nums; white-space: nowrap;
+    }
+
+    .badge-current {
+      font-size: 10px; font-weight: 800; letter-spacing: .03em; margin-left: 6px;
+      background: var(--accent-exercise); color: #fff; padding: 2px 6px; border-radius: 6px; vertical-align: middle;
+    }
+    .chev { color: var(--muted); font-size: 15px; }
+    .level-group-body { background: var(--bg); }
+    .check-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-top: 1px solid var(--border); cursor: pointer;
+    }
+    /* Done rows stay tappable -- tapping one unchecks it. */
+    .check-row.done { opacity: .7; }
+    .check-row.busy { opacity: .35; pointer-events: none; }
+    .check-circle {
+      width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border);
+      flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 800; color: #fff;
+    }
+    .check-row.done .check-circle { background: var(--accent-done); border-color: var(--accent-done); }
+    .check-label { flex: 1; font-size: 13.5px; }
+
+    /* ---- Boss fights ----------------------------------------------------
+     * Bosses live in the same list as exercises now, sitting where they
+     * actually fall in the book, so red is the only thing marking one. Tint,
+     * label, tag and XP badge all carry it. The left border is left alone so
+     * an assigned boss can still show its amber bar underneath.
+     * --------------------------------------------------------------------*/
+    .check-row.boss { background: rgba(224, 87, 79, .13); }
+    .check-row.boss .check-label { color: var(--accent-boss); font-weight: 700; }
+    .check-row.boss .xp-badge { background: var(--accent-boss); color: #fff; }
+    .boss-tag {
+      font-size: 10px; font-weight: 800; letter-spacing: .06em; color: #fff;
+      background: var(--accent-boss); border-radius: 4px; padding: 1px 5px;
+      flex-shrink: 0; line-height: 1.5;
+    }
+
+    /* A boss whose level the student's XP doesn't reach yet. Still
+       tappable -- tapping asks whether to override. */
+    .check-row.locked { opacity: .55; }
+    .check-row.locked .check-circle { border-style: dashed; }
+    .lock-note { font-size: 11px; color: var(--accent-manual); font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+
+    /* ---- Assigned work --------------------------------------------------
+     * What you've told this student to go practice. The whole row carries
+     * the amber now, not just the bar on the left, so scrolling a level you
+     * can see at a glance which lines are assigned without reading flags.
+     * A boss that's also assigned keeps its red label: the row reads
+     * "assigned" from the tint and "boss" from the text at the same time.
+     * --------------------------------------------------------------------*/
+    .check-row.assigned {
+      border-left: 5px solid var(--accent-manual);
+      background: rgba(214, 169, 79, .30);
+    }
+    .check-row.assigned .check-label { color: #ffdf9a; font-weight: 800; }
+    .check-row.assigned .check-circle { border-color: var(--accent-manual); }
+    .check-row.assigned .xp-badge { background: var(--accent-manual); color: #14161f; }
+    .check-row.assigned.boss { background: rgba(214, 169, 79, .30); }
+    .check-row.assigned.boss .check-label { color: #ff8e86; }
+    .check-row.assigned.boss .xp-badge { background: var(--accent-boss); color: #fff; }
+    /* Credited work wins over assigned -- it's done, stop shouting about it. */
+    .check-row.assigned.done { background: none; }
+    .check-row.assigned.done .check-label { color: var(--text); font-weight: 400; }
+    .check-row.assigned.done .xp-badge { background: var(--card-2); color: var(--text); }
+    .flag-btn {
+      flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; cursor: pointer;
+      border: 1px solid var(--border); background: var(--card); color: var(--muted);
+      font-size: 13px; line-height: 1; padding: 0;
+    }
+    .flag-btn.on { background: var(--accent-manual); color: #14161f; border-color: transparent; }
+    .assigned-box {
+      border: 1px solid var(--accent-manual); border-radius: 12px; margin-bottom: 12px; overflow: hidden;
+    }
+    .assigned-box h3 {
+      margin: 0; padding: 9px 12px; font-size: 12px; font-weight: 800; letter-spacing: .04em;
+      text-transform: uppercase; color: #14161f; background: var(--accent-manual);
+    }
+    .assign-chip {
+      background: var(--accent-manual); color: #14161f; border-radius: 999px;
+      padding: 1px 7px; font-weight: 800; font-size: 11px;
+    }
+    .xp-badge { background: var(--card-2); border-radius: 999px; padding: 2px 9px; font-weight: 700; font-size: 12px; flex-shrink: 0; }
+    .no-items { color: var(--muted); font-size: 13px; padding: 8px 2px 4px; }
+
+    label { display: block; font-size: 12.5px; color: var(--muted); margin: 10px 0 4px; }
+    select, input[type=number] {
+      width: 100%; padding: 10px 12px; border-radius: 10px;
+      border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 15px;
+    }
+    .primary-btn {
+      margin-top: 16px; width: 100%; padding: 13px; border-radius: 12px; border: none;
+      font-weight: 700; font-size: 15px; background: var(--accent-exercise); color: white; cursor: pointer;
+    }
+    .primary-btn.other { background: var(--accent-manual); color: #14161f; }
+    .primary-btn:disabled { opacity: .5; }
+
+    .lb-row {
+      display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 10px 12px; margin-bottom: 8px;
+    }
+    .lb-rank {
+      width: 28px; height: 28px; border-radius: 50%; background: var(--card-2);
+      display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0;
+    }
+    .lb-rank.gold { background: #d6a94f; color: #14161f; }
+    .lb-rank.silver { background: #b9c0d6; color: #14161f; }
+    .lb-rank.bronze { background: #c98a4f; color: #14161f; }
+    .lb-name { flex: 1; font-weight: 600; font-size: 14px; }
+    .lb-xp { font-weight: 700; font-size: 13px; color: var(--muted); }
+
+    /* ---- Lesson grid -----------------------------------------------------
+     * A lesson is one small group working the same pages, so marking them
+     * one sheet at a time means opening and closing five sheets to credit
+     * the same four exercises. The grid lays the whole group out at once:
+     * exercises down the side, students across the top, one tap per cell.
+     * Lives behind the yellow button on each Lesson Day group header.
+     * --------------------------------------------------------------------*/
+    .grid-btn {
+      flex: none; border: none; cursor: pointer;
+      background: var(--accent-manual); color: #14161f;
+      font-size: 11px; font-weight: 800; letter-spacing: .04em;
+      padding: 4px 10px; border-radius: 999px; text-transform: uppercase;
+      font-family: inherit;
+    }
+    .grid-btn:active { transform: scale(.95); }
+
+    /* Near full screen -- the point is to see everybody at once. The sheet
+       itself doesn't scroll; the table below does, so the names and the
+       mode buttons never leave the screen. */
+    #gridSheet { height: 94vh; max-height: 94vh; padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+    .grid-top {
+      flex: none; background: var(--bg);
+      padding: 14px 16px 10px; border-bottom: 1px solid var(--border);
+    }
+    .grid-title { font-size: 17px; font-weight: 700; }
+    .grid-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .mode-row { display: flex; gap: 6px; margin-top: 10px; }
+    .mode-btn {
+      flex: 1; text-align: center; padding: 8px 4px; border-radius: 10px;
+      font-size: 12.5px; font-weight: 700; cursor: pointer;
+      border: 1px solid var(--border); color: var(--muted); background: var(--card);
+    }
+    .mode-btn.active.credit { background: var(--accent-done); color: #0d1a13; border-color: transparent; }
+    .mode-btn.active.assign { background: var(--accent-manual); color: #14161f; border-color: transparent; }
+    .mode-hint { font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+
+    .grid-scroll { flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; padding: 0 0 20px; }
+    .grid-table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; }
+    /* The name row and the exercise column both stay put, so deep in level
+       14 you still know which column is whose. */
+    .grid-table thead th {
+      position: sticky; top: 0; z-index: 2; background: var(--bg);
+      border-bottom: 1px solid var(--border); padding: 6px 2px; vertical-align: bottom;
+    }
+    .grid-table th.gx, .grid-table td.gx {
+      position: sticky; left: 0; z-index: 1; background: var(--bg);
+      min-width: 190px; max-width: 190px; text-align: left;
+      border-right: 1px solid var(--border);
+    }
+    .grid-table thead th.gx { z-index: 4; }
+    .gname { font-size: 11.5px; font-weight: 700; line-height: 1.15; width: 52px; }
+    .gname .gl { display: block; font-size: 10px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+    .gname .gd { display: block; width: 7px; height: 7px; border-radius: 50%; margin: 3px auto 0; }
+    .gname .gd.boss { background: var(--accent-boss); }
+    .gname .gd.needsxp { background: var(--accent-manual); }
+
+    /* A level folder, same colours and number range as the single-student
+       checklist, drawn as one full-width row across the table. */
+    .grid-table tr.gfolder td { padding: 0; }
+    .gfolder-bar {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 9px 12px; background: var(--card); cursor: pointer;
+      font-size: 12.5px; font-weight: 700; border-top: 1px solid var(--border);
+    }
+    .gfolder-bar.book-yellow { background: rgba(214, 169, 79, .18); color: #f0cd7e; }
+    .gfolder-bar.book-red { background: rgba(224, 87, 79, .18); color: #f3a49d; }
+
+    .grid-table td.gx {
+      font-size: 12.5px; padding: 7px 8px; border-top: 1px solid var(--border);
+      line-height: 1.2;
+    }
+    .gx .gxp { color: var(--muted); font-size: 11px; font-weight: 700; margin-left: 5px; }
+    .gx.gboss { color: var(--accent-boss); font-weight: 700; }
+    .gall {
+      float: right; border: 1px solid var(--border); background: var(--card-2);
+      color: var(--muted); border-radius: 6px; font-size: 9.5px; font-weight: 800;
+      padding: 1px 5px; cursor: pointer; margin-left: 6px; font-family: inherit;
+    }
+    .grid-table td.gc {
+      border-top: 1px solid var(--border); text-align: center; padding: 4px 2px;
+    }
+    .cell {
+      width: 34px; height: 34px; margin: 0 auto; border-radius: 9px;
+      border: 2px solid var(--border); display: flex; align-items: center;
+      justify-content: center; font-size: 14px; font-weight: 800; cursor: pointer;
+      color: transparent; background: var(--card);
+    }
+    .cell.done { background: var(--accent-done); border-color: var(--accent-done); color: #fff; }
+    .cell.assigned { background: var(--accent-manual); border-color: var(--accent-manual); color: #14161f; }
+    /* Assigned AND done: it got practiced and credited. Green wins, with an
+       amber ring so you can still see it was on their assignment list. */
+    .cell.done.assigned { background: var(--accent-done); border-color: var(--accent-manual); color: #fff; }
+    .cell.locked { border-style: dashed; opacity: .5; }
+    .cell:active { transform: scale(.9); }
+    .grid-empty { color: var(--muted); font-size: 13px; padding: 24px 16px; }
+
+    .toast {
+      position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
+      background: var(--card-2); color: var(--text); border: 1px solid var(--border);
+      padding: 10px 18px; border-radius: 18px; font-size: 13.5px; font-weight: 600;
+      /* Error messages can be a sentence long -- let them wrap instead of
+         running off both sides of the screen. */
+      max-width: calc(100vw - 32px); text-align: center; line-height: 1.35;
+      opacity: 0; pointer-events: none; transition: all .25s ease; z-index: 30;
+      box-shadow: 0 6px 20px rgba(0,0,0,.35);
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .loading { text-align: center; color: var(--muted); padding: 40px 10px; }
+    /* Tells you at a glance which version of this page you're looking at. */
+    .build {
+      font-size: 10px; font-weight: 700; letter-spacing: .04em; color: var(--muted);
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 999px; padding: 2px 8px; margin-left: auto;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <!-- Build stamp. Bump it whenever this file changes, so one look at the
+       page tells you whether what you're using is what you last deployed. -->
+  <h1>🎺 Mallets &amp; Horns — Quick Credit <span class="build">build 10-07</span></h1>
+  <div class="tabs">
+    <div class="tab-btn active" id="tabStudents" onclick="switchTab('students')">Students</div>
+    <div class="tab-btn" id="tabLeaderboard" onclick="switchTab('leaderboard')">Leaderboard</div>
+    <div class="tab-btn" id="tabClass" onclick="switchTab('class')">Class Award</div>
+    <div class="tab-btn" id="tabSideQuests" onclick="switchTab('sidequests')">Side Quests</div>
+  </div>
+  <div style="display:flex; gap:8px; align-items:center;">
+    <input type="search" id="search" placeholder="Search students…" oninput="renderStudents()" style="flex:1;">
+    <button class="icon-btn" id="addStudentBtn" title="Add student" onclick="openStudentInfo('add')"
+      style="width:auto; height:44px; padding:0 16px; border-radius:12px; background:var(--accent-exercise); border-color:transparent; color:#fff; font-size:22px; font-weight:700;">+</button>
+  </div>
+  <div class="sort-row" id="sortRow">
+    <div class="sort-btn active" id="sortAZ" onclick="setSort('az')">A–Z</div>
+    <div class="sort-btn" id="sortSection" onclick="setSort('section')">Section</div>
+    <div class="sort-btn" id="sortDay" onclick="setSort('day')">Lesson Day</div>
+    <div class="sort-btn" id="sortGrade" onclick="setSort('grade')">Grade</div>
+    <div class="sort-btn" id="sortArchived" onclick="setSort('archived')">Archived</div>
+  </div>
+</header>
+
+<main>
+  <div id="studentsView"><div class="loading">Loading roster…</div></div>
+  <div id="leaderboardView" style="display:none;"></div>
+  <div id="classView" style="display:none;">
+    <label>XP for the whole class</label>
+    <input type="number" id="classXp" value="2">
+    <label>Reason</label>
+    <input type="text" id="classReason" placeholder="e.g. Daily participation">
+    <button class="primary-btn other" onclick="submitClassAward()">Award entire class</button>
+    <div class="no-items" style="margin-top:6px;">Tip: 2 XP is a good default for daily participation. If you need to walk it back before the bell, use the button below — it undoes the whole class's last award in one tap, not one student at a time.</div>
+    <button class="primary-btn" style="background:var(--card-2); color:var(--text); border:1px solid var(--border); margin-top:10px;" onclick="submitUndoBatch()">↩ Undo last class-wide action</button>
+  </div>
+  <div id="sideQuestsView" style="display:none;">
+    <div class="no-items" style="margin:0 0 6px;">Create a quest any student can earn on the spot — no redeploy needed, quests are saved straight to the sheet.</div>
+    <label>Quest name</label>
+    <input type="text" id="sqName" placeholder="e.g. Perfect posture all week">
+    <label>XP</label>
+    <input type="number" id="sqXp" value="10">
+    <label>Level required</label>
+    <select id="sqLevel"><option value="0">No requirement — any level</option></select>
+    <label>Icon <span style="font-weight:400; color:var(--muted);">— the slot that lights up on the TV. Stick to the plain characters; the TV has no emoji font.</span></label>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <input type="text" id="sqIcon" maxlength="4" value="★"
+             style="width:72px; text-align:center; font-size:26px; line-height:1; flex:none;"
+             oninput="checkIconClash()">
+      <div id="sqIconTaken" style="font-size:12px; font-weight:700; color:var(--accent-boss);"></div>
+    </div>
+    <div id="sqIconPicker" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;
+         max-height:212px; overflow-y:auto; -webkit-overflow-scrolling:touch;
+         padding:6px; border:1px solid var(--border); border-radius:12px;"></div>
+    <div id="sqFormTitle" style="font-size:12px; color:var(--accent-manual); font-weight:700; margin-top:6px;"></div>
+    <button class="primary-btn other" id="sqFormBtn" onclick="submitSideQuestForm()">+ Add Side Quest</button>
+    <button class="primary-btn" id="sqCancelEdit" style="display:none; background:var(--card-2); color:var(--text); border:1px solid var(--border); margin-top:8px;" onclick="cancelEditSideQuest()">Cancel edit</button>
+    <div id="sideQuestList" style="margin-top:18px;"></div>
+  </div>
+</main>
+
+<div class="sheet-overlay" id="sqOverlay" onclick="closeSqSheet()"></div>
+<div class="sheet" id="sqSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <div>
+      <h2 id="sqSheetName">Quest</h2>
+      <div class="stat-row" id="sqSheetStats"></div>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" onclick="closeSqSheet()">✕</button>
+    </div>
+  </div>
+  <input type="search" class="panel-search" id="sqStudentSearch" placeholder="Search students…" oninput="renderSqStudentList()">
+  <div id="sqStudentList"></div>
+</div>
+
+<div class="sheet-overlay" id="overlay" onclick="closeSheet()"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-top">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div>
+        <h2 id="sheetName">Student</h2>
+        <div class="stat-row" id="sheetStats"></div>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn" title="Edit student info" onclick="openStudentInfo('edit')">✎</button>
+        <button class="icon-btn" title="Undo last entry" onclick="submitUndo()">↩</button>
+        <button class="icon-btn" onclick="closeSheet()">✕</button>
+      </div>
+    </div>
+
+    <div class="section-tabs">
+      <div class="section-tab active exercise" id="secTabExercise" onclick="switchSection('exercise')">Exercises</div>
+      <div class="section-tab other" id="secTabOther" onclick="switchSection('other')">Manual</div>
+    </div>
+  </div>
+
+  <div class="panel active" id="panelExercise">
+    <input type="search" class="panel-search" id="exerciseSearch" placeholder="Search exercises and boss fights…" oninput="renderChecklist('Exercise')">
+    <div id="ExerciseList"></div>
+  </div>
+  <div class="panel" id="panelOther"></div>
+</div>
+
+<div class="sheet-overlay" id="infoOverlay" onclick="closeInfoSheet()"></div>
+<div class="sheet" id="infoSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <div><h2 id="infoSheetTitle">Student Info</h2></div>
+    <div class="header-actions">
+      <button class="icon-btn" onclick="closeInfoSheet()">✕</button>
+    </div>
+  </div>
+
+  <label>Name</label>
+  <input type="text" id="infoName" placeholder="Full name">
+
+  <label>Gender</label>
+  <select id="infoGender"></select>
+
+  <label>Grade</label>
+  <select id="infoGrade"></select>
+
+  <label>Chest Size (inches)</label>
+  <select id="infoChest"></select>
+
+  <label>Waist Size (inches)</label>
+  <select id="infoWaist"></select>
+
+  <label>Jacket Number</label>
+  <select id="infoJacket"></select>
+
+  <label>Pant Size</label>
+  <select id="infoPant"></select>
+
+  <label>Shoe Size (Men's)</label>
+  <select id="infoShoe"></select>
+
+  <label>Instrument</label>
+  <select id="infoInstrument"></select>
+
+  <label>Lesson Day</label>
+  <select id="infoLessonDay"></select>
+
+  <label>Serial Number</label>
+  <input type="text" id="infoSerial" placeholder="Instrument serial number">
+
+  <label style="display:flex; align-items:center; gap:8px; margin-top:16px; color:var(--text); font-size:14px;">
+    <input type="checkbox" id="infoHasSecondary" style="width:auto;" onchange="toggleSecondaryFields()">
+    Plays a secondary instrument
+  </label>
+
+  <div id="secondaryFields" style="display:none;">
+    <label>Secondary Instrument</label>
+    <select id="infoSecondaryInstrument"></select>
+    <label>Secondary Serial Number</label>
+    <input type="text" id="infoSecondarySerial" placeholder="Instrument serial number">
+  </div>
+
+  <label>Instrument Status</label>
+  <select id="infoStatus"></select>
+
+  <div class="no-items" id="infoRenameNote" style="margin:10px 0 0; display:none;">
+    Changing the name keeps all of this student's XP, levels, and history — every past Log entry moves to the new name too.
+  </div>
+
+  <button class="primary-btn" id="infoSaveBtn" onclick="submitStudentInfo()">Save changes</button>
+  <button class="primary-btn" style="background:var(--card-2); color:var(--text); border:1px solid var(--border); margin-top:8px;" onclick="closeInfoSheet()">Cancel</button>
+  <button class="primary-btn" id="infoArchiveBtn" style="display:none; background:transparent; color:var(--accent-boss); border:1px solid var(--accent-boss); margin-top:14px;" onclick="toggleArchiveCurrent()">Archive student</button>
+  <div class="no-items" id="infoArchiveNote" style="display:none; margin:6px 0 0;">
+    Archiving hides them from the roster and the leaderboard. Nothing is deleted — their XP, levels and history all stay, and bringing them back restores everything. Find archived students under the <b>Archived</b> filter on the Students tab.
+  </div>
+</div>
+
+<!-- Lesson grid: the whole lesson group on one screen. -->
+<div class="sheet-overlay" id="gridOverlay" onclick="closeLessonGrid()"></div>
+<div class="sheet" id="gridSheet">
+  <div class="grid-top">
+    <div class="sheet-header" style="margin-bottom:0;">
+      <div>
+        <div class="grid-title" id="gridTitle">Lesson</div>
+        <div class="grid-sub" id="gridSub"></div>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn" onclick="closeLessonGrid()">✕</button>
+      </div>
+    </div>
+    <div class="mode-row">
+      <div class="mode-btn credit active" id="gridModeCredit" onclick="setGridMode('credit')">✓ Credit</div>
+      <div class="mode-btn assign" id="gridModeAssign" onclick="setGridMode('assign')">⚑ Assign</div>
+    </div>
+    <input type="search" id="gridSearch" placeholder="Filter exercises…" oninput="renderLessonGrid()" style="margin-top:10px;">
+    <div class="mode-hint" id="gridHint"></div>
+  </div>
+  <div class="grid-scroll" id="gridScroll"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  /* google.script.run stand-in. Inside Apps Script the real one exists and
+     this does nothing; in the tablet app it sends the same calls to doPost. */
+  (function () {
+    if (window.google && google.script && google.script.run) return;
+    var API_URL = 'https://script.google.com/macros/s/AKfycbxeJo1f0PiBSpW4BHRxtz7UnXYrjnIoW7ZnuNUYSuNRDNBEGijlkQNk1qS0OgfLx6eK0g/exec';
+    var token = null;
+    try { token = localStorage.getItem('mhToken'); } catch (e) {}
+    if (!token) {
+      token = prompt('Mallets & Horns token:') || '';
+      try { localStorage.setItem('mhToken', token); } catch (e) {}
+    }
+    function runner(ok, fail) {
+      return new Proxy({}, { get: function (_, fn) {
+        if (fn === 'withSuccessHandler') return function (f) { return runner(f, fail); };
+        if (fn === 'withFailureHandler') return function (f) { return runner(ok, f); };
+        return function () {
+          var args = Array.prototype.slice.call(arguments);
+          fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ token: token, fn: fn, args: args })
+          })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (d.ok) { if (ok) ok(d.result); }
+            else {
+              if (d.error === 'bad token') { try { localStorage.removeItem('mhToken'); } catch (e) {} }
+              if (fail) fail(new Error(d.error));
+            }
+          })
+          .catch(function (e) { if (fail) fail(e); });
+        };
+      }});
+    }
+    window.google = window.google || {};
+    google.script = { run: runner(null, null) };
+  })();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
+</script>
+
+<script>
+  var DATA = { students: [], curriculum: [], sideQuests: [], maxLevel: 30, jacketNumbers: [] };
+  var currentStudent = null;
+  var currentQuest = null;
+  var currentSection = 'exercise';
+  var openGroups = {}; // remembers which level-groups are manually expanded
+
+  /* ---- Extras (QuickCreditExtras.gs) ------------------------------------
+   * levels      — XP thresholds, so the page knows when a boss is locked
+   * archived    — benched students, so they can be brought back from here
+   * assignments — what you've told each student to go practice
+   * All optional: if that script isn't installed yet, the page still runs,
+   * the boss gate just stays open and the Archived filter stays empty.
+   * ---------------------------------------------------------------------*/
+  var EXTRAS = { levels: [], archived: [], assignments: {} };
+  var EXTRAS_OK = false;
+
+  google.script.run.withSuccessHandler(onData).withFailureHandler(onError).adminData();
+  loadExtras();
+
+  function loadExtras(cb) {
+    google.script.run.withSuccessHandler(function (res) {
+      if (res) { EXTRAS = res; EXTRAS_OK = true; }
+      if (cb) cb();
+      if (!DATA.students.length) return;   // roster hasn't landed yet
+      renderStudents();
+      if (isOpen_('sheet') && currentStudent) { renderSheetHeader(); rerenderCurrentChecklist(); }
+    }).withFailureHandler(function (err) {
+      EXTRAS_OK = false;   // QuickCreditExtras.gs not installed — degrade quietly
+      // Quietly on screen, but say it out loud in the console: when saving
+      // later fails, this is the first thing worth looking at.
+      console.error('qcExtras failed:', err);
+      if (cb) cb();
+    }).qcExtras();
+  }
+
+  /* ---- Level math -------------------------------------------------------
+   * xpLevelOf_  the highest level this student's XP alone qualifies for.
+   * The displayed level is min(that, bosses cleared + 1), so comparing the
+   * two tells you which of the two is holding them back.
+   * ---------------------------------------------------------------------*/
+  function xpForLevel_(level) {
+    var row = EXTRAS.levels.find(function (l) { return l.level === level; });
+    return row ? row.xp : null;
+  }
+
+  function xpLevelOf_(s) {
+    if (!EXTRAS.levels.length) return Infinity;  // no thresholds -> never gate
+    var best = 1;
+    EXTRAS.levels.forEach(function (l) { if (s.xp >= l.xp && l.level > best) best = l.level; });
+    return best;
+  }
+
+  // How much more XP before this student qualifies for `level`. 0 = already there.
+  function xpShortfall_(s, level) {
+    var need = xpForLevel_(level);
+    if (need == null) return 0;
+    return Math.max(0, need - s.xp);
+  }
+
+  // Bosses are cleared but XP is behind -- they can't advance until they go
+  // back and finish exercises they skipped.
+  function needsXp_(s) {
+    if (!EXTRAS.levels.length) return false;
+    return (s.bossLevel || 0) >= xpLevelOf_(s);
+  }
+
+  function assignedFor_(name) { return (EXTRAS.assignments && EXTRAS.assignments[name]) || []; }
+  function isAssigned_(name, item) { return assignedFor_(name).indexOf(item) !== -1; }
+
+  function onData(data) {
+    // A server hiccup can hand back nothing; keep whatever is on screen
+    // rather than blanking the roster mid-class.
+    if (!data || !data.students) { showToast('⚠ Roster didn’t load — tap a student again in a moment'); return; }
+    DATA = data;
+    renderStudents();
+  }
+  function onError(err) {
+    document.getElementById('studentsView').innerHTML =
+      '<div class="empty">Couldn\'t load data: ' + (err.message || err) + '</div>';
+  }
+  function refreshData(cb) {
+    google.script.run.withSuccessHandler(function (data) {
+      if (data && data.students) { DATA = data; rebindCurrent_(); }
+      if (cb) cb();
+    }).withFailureHandler(onError).adminData();
+  }
+
+  // After DATA is replaced, point the open student/quest at the new objects.
+  function rebindCurrent_() {
+    if (currentStudent) {
+      var s = DATA.students.find(function (x) { return x.student === currentStudent.student; });
+      if (s) currentStudent = s;
+    }
+    if (currentQuest) {
+      var q = (DATA.sideQuests || []).find(function (x) { return x.name === currentQuest.name; });
+      if (q) currentQuest = q;
+    }
+  }
+
+  /* ---- Speed: optimistic taps ------------------------------------------
+   * A tap updates the screen immediately and saves in the background.
+   * If the save fails, the change is rolled back and a toast explains why.
+   * Instead of reloading everything after every tap, one quiet full sync
+   * runs 10 seconds after the last tap (and never while saves are still
+   * in flight), so Stream Deck changes still show up.
+   * ---------------------------------------------------------------------*/
+  var pendingSaves = 0, tapVersion = 0, syncTimer = null;
+
+  function isOpen_(id) { return document.getElementById(id).classList.contains('open'); }
+
+  function renderAfterTap_() {
+    renderStudents();
+    if (isOpen_('sheet') && currentStudent) { renderSheetHeader(); rerenderCurrentChecklist(); }
+    if (isOpen_('sqSheet')) renderSqStudentList();
+    if (isOpen_('gridSheet')) renderLessonGrid();
+  }
+
+  function scheduleSync_() {
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(backgroundSync_, 10000);
+  }
+
+  function backgroundSync_() {
+    if (pendingSaves > 0) { scheduleSync_(); return; }
+    var startedAt = tapVersion;
+    google.script.run.withSuccessHandler(function (data) {
+      if (pendingSaves > 0 || tapVersion !== startedAt) { scheduleSync_(); return; }
+      DATA = data;
+      rebindCurrent_();
+      renderAfterTap_();
+    }).withFailureHandler(function () { /* try again on the next tap */ }).adminData();
+  }
+
+  function hasItem_(s, item) { return (s.doneItems || []).indexOf(item) !== -1; }
+
+  function applyLocal_(s, item, xp, adding) {
+    if (adding) { s.doneItems = (s.doneItems || []).concat([item]); s.xp += xp; }
+    else { s.doneItems = (s.doneItems || []).filter(function (i) { return i !== item; }); s.xp -= xp; }
+  }
+
+  // s: student object, adding: true to credit / false to remove,
+  // callServer(runner): makes the google.script.run call on the runner.
+  function optimisticTap_(s, item, xp, adding, callServer) {
+    applyLocal_(s, item, xp, adding);
+    s._pending = (s._pending || 0) + 1;
+    pendingSaves++; tapVersion++;
+    renderAfterTap_();
+
+    function finish(res, errMsg) {
+      pendingSaves--; s._pending--;
+      if (errMsg) {
+        applyLocal_(s, item, xp, !adding);
+        showToast(errMsg);
+      } else if (res.skipped) {
+        s.xp -= xp; // server already had it; keep the checkmark, drop the double count
+      } else if (res.stats && s._pending === 0) {
+        // Only trust server totals once this student's taps have all landed.
+        Object.assign(s, res.stats);
+      }
+      renderAfterTap_();
+      scheduleSync_();
+    }
+
+    callServer(google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res || !res.ok) finish(null, '⚠ Not saved: ' + ((res && res.error) || 'failed'));
+        else finish(res, null);
+      })
+      .withFailureHandler(function (err) {
+        finish(null, '⚠ Not saved: ' + (err.message || err));
+      }));
+  }
+
+  function switchTab(which) {
+    document.getElementById('tabStudents').classList.toggle('active', which === 'students');
+    document.getElementById('tabLeaderboard').classList.toggle('active', which === 'leaderboard');
+    document.getElementById('tabClass').classList.toggle('active', which === 'class');
+    document.getElementById('tabSideQuests').classList.toggle('active', which === 'sidequests');
+    document.getElementById('studentsView').style.display = which === 'students' ? '' : 'none';
+    document.getElementById('leaderboardView').style.display = which === 'leaderboard' ? '' : 'none';
+    document.getElementById('classView').style.display = which === 'class' ? '' : 'none';
+    document.getElementById('sideQuestsView').style.display = which === 'sidequests' ? '' : 'none';
+    document.getElementById('search').style.display = which === 'students' ? '' : 'none';
+    document.getElementById('addStudentBtn').style.display = which === 'students' ? '' : 'none';
+    document.getElementById('sortRow').style.display = which === 'students' ? '' : 'none';
+    if (which === 'leaderboard') renderLeaderboard();
+    if (which === 'sidequests') {
+      renderSideQuestLevelOptions(); renderSideQuestList();
+      if (!editingQuest) cancelEditSideQuest(); else renderIconPicker();
+    }
+  }
+
+  // Three ways to browse the Students tab: 'az' is the plain Roster-order
+  // list (unchanged default), 'section' groups by Instrument, 'day' groups
+  // by Lesson Day. Search always filters first, across whichever mode is
+  // active, and empty groups just don't render.
+  var currentSort = 'az';
+
+  function setSort(mode) {
+    currentSort = mode;
+    ['AZ', 'Section', 'Day', 'Grade', 'Archived'].forEach(function (s) {
+      document.getElementById('sort' + s).classList.toggle('active', s.toLowerCase() === mode);
+    });
+    renderStudents();
+  }
+
+  function renderStudents() {
+    var q = (document.getElementById('search').value || '').toLowerCase();
+    if (currentSort === 'archived') { renderArchived(q); return; }
+
+    var archived = {};
+    (EXTRAS.archived || []).forEach(function (n) { archived[n] = true; });
+    var list = DATA.students.filter(function (s) {
+      return !archived[s.student] && s.student.toLowerCase().indexOf(q) !== -1;
+    });
+
+    var html;
+    if (list.length === 0) {
+      html = '<div class="empty">No students match.</div>';
+    } else if (currentSort === 'section') {
+      html = renderGroupedStudents(sectionGroups_(list));
+    } else if (currentSort === 'day') {
+      html = renderGroupedStudents(dayGroups_(list), true);
+    } else if (currentSort === 'grade') {
+      html = renderGroupedStudents(gradeGroups_(list));
+    } else {
+      html = '<div class="student-grid">' + list.map(studentCardHtml).join('') + '</div>';
+    }
+    document.getElementById('studentsView').innerHTML = html;
+  }
+
+  function studentCardHtml(s) {
+    var dots = '';
+    if (s.bossReady) dots += '<span class="dot boss" title="Boss fight ready"></span>';
+    if (needsXp_(s)) dots += '<span class="dot needsxp" title="Needs more XP to advance"></span>';
+    var nAssigned = assignedFor_(s.student).length;
+    return '<div class="student-card' + (dots ? ' has-dots' : '') + '" ' +
+        'onclick="openStudent(\'' + escAttr(s.student) + '\')">' +
+      (dots ? '<div class="card-dots">' + dots + '</div>' : '') +
+      '<div class="student-name">' + esc(s.student) + '</div>' +
+      '<div class="student-meta">' +
+        '<span class="level-pill">Lv ' + s.level + '</span>' +
+        (nAssigned ? '<span class="assign-chip" title="Assigned exercises">⚑ ' + nAssigned + '</span>' : '') +
+        '<span>' + s.xp + ' XP</span>' +
+      '</div></div>';
+  }
+
+  // The Archived filter. These students are off the roster views and the
+  // leaderboard but nothing of theirs is gone -- one tap puts them back.
+  function renderArchived(q) {
+    var names = (EXTRAS.archived || []).filter(function (n) {
+      return !q || n.toLowerCase().indexOf(q) !== -1;
+    });
+    var html;
+    if (!EXTRAS_OK) {
+      html = '<div class="empty">Archiving needs QuickCreditExtras.gs added to the Apps Script project.</div>';
+    } else if (!names.length) {
+      html = '<div class="empty">' + (q ? 'No archived students match.' : 'Nobody is archived.') + '</div>';
+    } else {
+      html = '<div class="student-grid">' + names.map(function (n) {
+        return '<div class="student-card" style="opacity:.75;">' +
+          '<div class="student-name">' + esc(n) + '</div>' +
+          '<button class="primary-btn" style="margin-top:8px; padding:9px; font-size:13px; background:var(--card-2); color:var(--text); border:1px solid var(--border);" ' +
+            'onclick="setArchived(\'' + escAttr(n) + '\', false)">Bring back</button>' +
+          '</div>';
+      }).join('') + '</div>';
+    }
+    document.getElementById('studentsView').innerHTML = html;
+  }
+
+  function setArchived(name, archived) {
+    showToast(archived ? ('Archiving ' + name + '…') : ('Bringing back ' + name + '…'));
+    google.script.run.withSuccessHandler(function (res) {
+      if (!res || !res.ok) { showToast((res && res.error) || 'Failed'); return; }
+      showToast(archived ? ('✓ Archived ' + name) : ('✓ ' + name + ' is back'));
+      if (!archived && currentSort === 'archived') setSort('az');
+      closeInfoSheet();
+      closeSheet();
+      refreshData(function () { loadExtras(); });
+    }).withFailureHandler(function (err) {
+      showToast('Archiving needs QuickCreditExtras.gs — ' + (err.message || err));
+    }).qcSetArchived(name, archived);
+  }
+
+  // Asks, then archives (or brings back). Used by the button on the
+  // student's card and by the one at the bottom of the Edit form, so both
+  // say the same thing.
+  function promptArchive_(name) {
+    if (!name) return;
+    var isArchived = (EXTRAS.archived || []).indexOf(name) !== -1;
+    var msg = isArchived
+      ? 'Bring ' + name + ' back onto the roster?'
+      : 'Archive ' + name + '?\n\nThey come off the roster and the leaderboard. No XP or history is deleted, and you can bring them back any time from the Archived filter.';
+    if (!confirm(msg)) return;
+    setArchived(name, !isArchived);
+  }
+
+  function toggleArchiveCurrent() { promptArchive_(infoEditingName); }
+
+  // Buckets students by Instrument, in the same band order as the info
+  // form's dropdown, with anyone missing an instrument in their own group
+  // at the end -- nobody silently disappears from the list.
+  function sectionGroups_(list) {
+    var buckets = {};
+    INSTRUMENTS.forEach(function (i) { buckets[i] = []; });
+    var none = [];
+    list.forEach(function (s) {
+      var inst = s.info && s.info.instrument;
+      if (inst && buckets.hasOwnProperty(inst)) buckets[inst].push(s);
+      else none.push(s);
+    });
+    var groups = INSTRUMENTS.map(function (i) { return { label: i, items: buckets[i] }; });
+    groups.push({ label: 'No Instrument Set', items: none });
+    return groups;
+  }
+
+  // Buckets students by Lesson Day, then by Grade within each day --
+  // mirrors the actual lesson schedule table (Grade+Hour rows crossed with
+  // Day columns), so "Monday" splits into "Monday · 6th Grade", "Monday ·
+  // 7th Grade", etc. Combos nobody's in just don't render (renderGrouped
+  // Students already skips empty groups). Anyone missing a Lesson Day
+  // and/or Grade lands in one "Unscheduled" group at the end instead of
+  // silently vanishing.
+  function dayGroups_(list) {
+    var groups = [];
+    LESSON_DAYS.forEach(function (day) {
+      GRADES.forEach(function (grade) {
+        var items = list.filter(function (s) {
+          return s.info && s.info.lessonDay === day && gradeDigit_(s.info.grade) === grade;
+        });
+        groups.push({ label: day + ' · ' + GRADE_LABELS[grade], items: items });
+      });
+    });
+    var unscheduled = list.filter(function (s) {
+      var day = s.info && s.info.lessonDay, grade = gradeDigit_(s.info && s.info.grade);
+      return !(day && grade && LESSON_DAYS.indexOf(day) !== -1 && GRADES.indexOf(grade) !== -1);
+    });
+    groups.push({ label: 'Unscheduled', items: unscheduled });
+    return groups;
+  }
+
+  // Buckets students by Grade, 5th through 8th, with anyone missing a
+  // grade in their own group at the end.
+  function gradeGroups_(list) {
+    var buckets = {};
+    GRADES.forEach(function (g) { buckets[g] = []; });
+    var none = [];
+    list.forEach(function (s) {
+      var grade = gradeDigit_(s.info && s.info.grade);
+      if (grade && buckets.hasOwnProperty(grade)) buckets[grade].push(s);
+      else none.push(s);
+    });
+    var groups = GRADES.map(function (g) { return { label: GRADE_LABELS[g], items: buckets[g] }; });
+    groups.push({ label: 'No Grade Set', items: none });
+    return groups;
+  }
+
+  // `withGrid` adds the yellow GRID button to each header -- only Lesson
+  // Day mode gets it, because a lesson group is the one grouping small
+  // enough, and uniform enough, to work through as a single table.
+  // Groups are cached by index so the button can name one without
+  // stuffing every student's name into an onclick attribute.
+  var groupCache = [];
+
+  function renderGroupedStudents(groups, withGrid) {
+    var html = '';
+    groupCache = groups;
+    groups.forEach(function (g, i) {
+      if (!g.items.length) return;
+      html += '<div class="group-header">' +
+        (withGrid ? '<button class="grid-btn" onclick="openLessonGrid(' + i + ')">▦ Grid</button>' : '') +
+        '<span>' + esc(g.label) +
+        ' <span style="color:var(--muted); font-weight:600;">(' + g.items.length + ')</span></span></div>' +
+        '<div class="student-grid">' + g.items.map(studentCardHtml).join('') + '</div>';
+    });
+    return html || '<div class="empty">No students match.</div>';
+  }
+
+  /* ---- Lesson grid ------------------------------------------------------
+   * A lesson group is four or five players working the same pages, so
+   * crediting them one sheet at a time means opening and closing five
+   * sheets to mark the same four exercises. This lays the group out as a
+   * table -- exercises down the side, students across the top -- and every
+   * box is one tap. Credit mode logs XP exactly like the single-student
+   * checklist does; Assign mode just flags homework.
+   *
+   * Students are held by name, not by object, so a background refresh that
+   * replaces DATA can't leave the grid pointing at stale copies.
+   * ---------------------------------------------------------------------*/
+  var gridNames = [];
+  var gridLabel = '';
+  var gridMode = 'credit';
+  var gridOpen = {};   // level -> expanded?
+
+  function gridRoster_() {
+    return gridNames.map(function (n) {
+      return DATA.students.find(function (s) { return s.student === n; });
+    }).filter(Boolean);
+  }
+
+  // Columns are narrow, so "Scout O'Donnell" becomes "Scout O." A single
+  // first name is left alone.
+  function shortName_(name) {
+    var parts = String(name || '').trim().split(/\s+/);
+    if (parts.length < 2) return parts[0] || '';
+    return parts[0] + ' ' + parts[parts.length - 1].charAt(0) + '.';
+  }
+
+  function openLessonGrid(i) {
+    var g = groupCache[i];
+    if (!g || !g.items.length) return;
+    gridLabel = g.label;
+    gridNames = g.items.map(function (s) { return s.student; });
+    gridOpen = {};
+    // Start with the levels the group is actually sitting in open, and the
+    // rest of the book collapsed but one tap away.
+    var levels = g.items.map(function (s) { return s.level; });
+    var lo = Math.min.apply(null, levels), hi = Math.max.apply(null, levels);
+    for (var L = lo; L <= hi; L++) gridOpen[L] = true;
+    document.getElementById('gridSearch').value = '';
+    // Open first: the renderer bails out when the sheet is closed.
+    document.getElementById('gridOverlay').classList.add('open');
+    document.getElementById('gridSheet').classList.add('open');
+    setGridMode('credit');
+    // Land on the levels they're working in rather than at Level 1 with
+    // nine collapsed folders to scroll past.
+    var scroll = document.getElementById('gridScroll');
+    var first = scroll.querySelector('.gfolder-bar.is-open');
+    if (first) {
+      var head = scroll.querySelector('thead');
+      scroll.scrollTop += first.getBoundingClientRect().top - scroll.getBoundingClientRect().top
+        - (head ? head.offsetHeight : 0);
+    }
+  }
+
+  function closeLessonGrid() {
+    document.getElementById('gridOverlay').classList.remove('open');
+    document.getElementById('gridSheet').classList.remove('open');
+  }
+
+  function setGridMode(mode) {
+    gridMode = mode;
+    document.getElementById('gridModeCredit').classList.toggle('active', mode === 'credit');
+    document.getElementById('gridModeAssign').classList.toggle('active', mode === 'assign');
+    document.getElementById('gridHint').textContent = mode === 'credit'
+      ? 'Credit mode — a tap logs the exercise and its XP. Tap a green box to take it back. ALL does the whole group at once.'
+      : 'Assign mode — a tap flags the exercise as practice. No XP moves and nothing hits the Log.';
+    renderLessonGrid();
+  }
+
+  function toggleGridLevel(level) {
+    gridOpen[level] = !gridOpen[level];
+    renderLessonGrid();
+  }
+
+  function renderLessonGrid() {
+    if (!isOpen_('gridSheet')) return;
+    var roster = gridRoster_();
+    var scroll = document.getElementById('gridScroll');
+    document.getElementById('gridTitle').textContent = gridLabel;
+    if (!roster.length) {
+      document.getElementById('gridSub').textContent = '';
+      scroll.innerHTML = '<div class="grid-empty">Nobody in this group right now.</div>';
+      return;
+    }
+    document.getElementById('gridSub').textContent =
+      roster.length + ' student' + (roster.length === 1 ? '' : 's');
+
+    var q = (document.getElementById('gridSearch').value || '').toLowerCase();
+    var items = DATA.curriculum.filter(function (c) {
+      var t = String(c.type).toLowerCase();
+      return t === 'exercise' || t === 'boss';
+    });
+    var byLevel = {};
+    items.forEach(function (c) {
+      if (!byLevel[c.level]) byLevel[c.level] = { level: c.level, book: c.book, items: [] };
+      byLevel[c.level].items.push(c);
+    });
+    var groups = Object.keys(byLevel).map(function (k) { return byLevel[k]; })
+      .sort(function (a, b) { return a.level - b.level; });
+    groups.forEach(function (g) {
+      g.items.sort(function (a, b) { return num_(a) - num_(b) || a.item.localeCompare(b.item); });
+    });
+
+    var cols = roster.length + 1;
+    var head = '<thead><tr><th class="gx"></th>' + roster.map(function (s) {
+      var dot = s.bossReady ? '<span class="gd boss" title="Boss fight ready"></span>'
+        : (needsXp_(s) ? '<span class="gd needsxp" title="Needs more XP"></span>' : '');
+      return '<th title="' + escAttr(s.student) + '"><div class="gname">' +
+        esc(shortName_(s.student)) + '<span class="gl">Lv ' + s.level + '</span>' + dot +
+        '</div></th>';
+    }).join('') + '</tr></thead>';
+
+    var body = '';
+    groups.forEach(function (g) {
+      var visible = g.items.filter(function (c) { return !q || c.item.toLowerCase().indexOf(q) !== -1; });
+      if (!visible.length) return;
+      var open = q ? true : !!gridOpen[g.level];
+      var range = numRange_(g.items);
+      body += '<tr class="gfolder"><td colspan="' + cols + '">' +
+        '<div class="gfolder-bar ' + bookClass_(g.book) + (open ? ' is-open' : '') +
+          '" onclick="toggleGridLevel(' + g.level + ')">' +
+          '<span>' + esc(g.book) + ' · Level ' + g.level +
+            (range ? '<span class="numrange">' + range + '</span>' : '') + '</span>' +
+          '<span class="chev">' + (open ? '−' : '+') + '</span>' +
+        '</div></td></tr>';
+      if (!open) return;
+      visible.forEach(function (c) {
+        var boss = isBoss_(c);
+        body += '<tr><td class="gx' + (boss ? ' gboss' : '') + '">' +
+          '<button class="gall" onclick="gridAll(\'' + escAttr(c.item) + '\', ' + c.xp + ', ' +
+            g.level + ', ' + (boss ? 'true' : 'false') + ')">All</button>' +
+          esc(c.item) + '<span class="gxp">' + c.xp + ' XP</span></td>' +
+          roster.map(function (s) {
+            var done = hasItem_(s, c.item);
+            var asg = isAssigned_(s.student, c.item);
+            var short = boss ? xpShortfall_(s, g.level) : 0;
+            var cls = 'cell' + (done ? ' done' : '') + (asg ? ' assigned' : '') +
+              (short && !done ? ' locked' : '');
+            return '<td class="gc"><div class="' + cls + '" ' +
+              'onclick="gridTap(\'' + escAttr(s.student) + '\', \'' + escAttr(c.item) + '\', ' +
+                c.xp + ', ' + (short || 0) + ')">' +
+              (done ? '✓' : (asg ? '⚑' : '·')) + '</div></td>';
+          }).join('') + '</tr>';
+      });
+    });
+
+    // Every tap re-draws the table, so hold the scroll position -- losing
+    // your place back to the top of the book mid-lesson is maddening.
+    var sx = scroll.scrollLeft, sy = scroll.scrollTop;
+    scroll.innerHTML = body
+      ? '<table class="grid-table">' + head + '<tbody>' + body + '</tbody></table>'
+      : '<div class="grid-empty">No exercises match.</div>';
+    scroll.scrollLeft = sx; scroll.scrollTop = sy;
+  }
+
+  // One cell. Credit mode routes through the same optimistic save the
+  // single-student checklist uses, so a grid tap and a sheet tap are the
+  // same thing to the Log.
+  function gridTap(name, item, xp, short) {
+    var s = DATA.students.find(function (x) { return x.student === name; });
+    if (!s) return;
+    if (gridMode === 'assign') { toggleAssignFor_(name, item); return; }
+    if (hasItem_(s, item)) {
+      if (!confirm('Uncheck "' + item + '" for ' + name + '?\n\nThis removes ' + xp + ' XP.')) return;
+      showToast('✕ −' + xp + ' XP · ' + name);
+      optimisticTap_(s, item, xp, false, function (run) { run.adminUnmark(name, item); });
+      return;
+    }
+    if (short > 0 && !confirm(
+        name + ' is ' + short + ' XP short of the level this boss unlocks.\n\n' +
+        'Normally they\'d go back and finish exercises they skipped first.\n\n' +
+        'Credit it anyway?')) return;
+    showToast('✓ +' + xp + ' XP · ' + name);
+    optimisticTap_(s, item, xp, true, function (run) { run.adminMarkOne(name, item); });
+  }
+
+  /* The whole lesson played it -- one tap instead of five. Students who
+   * already have it are skipped, same as MARK ALL on the Stream Deck.
+   *
+   * No "are you sure" on the way through: in a lesson this gets used every
+   * couple of minutes and a dialog every time is worse than the mistake it
+   * prevents. Both actions are additive and reversible -- a wrong credit is
+   * one tap on the green box to take back, a wrong flag one tap on the
+   * amber. The toast names how many it hit so a misfire is obvious.
+   *
+   * The one exception is a boss nobody's XP reaches yet. Crediting that by
+   * accident jumps a student past work they haven't done, so it still asks.
+   */
+  function gridAll(item, xp, level, boss) {
+    var roster = gridRoster_();
+    if (gridMode === 'assign') {
+      var toAssign = roster.filter(function (s) { return !isAssigned_(s.student, item); });
+      if (!toAssign.length) { showToast('Everyone already has that assigned'); return; }
+      toAssign.forEach(function (s) { toggleAssignFor_(s.student, item, true); });
+      showToast('⚑ Assigned to ' + toAssign.length +
+        ' student' + (toAssign.length === 1 ? '' : 's'));
+      return;
+    }
+    var todo = roster.filter(function (s) { return !hasItem_(s, item); });
+    if (!todo.length) { showToast('Everyone already has that one'); return; }
+    if (boss) {
+      var shortOnes = todo.filter(function (s) { return xpShortfall_(s, level) > 0; });
+      if (shortOnes.length && !confirm(
+          shortOnes.map(function (s) {
+            return s.student + ' (' + xpShortfall_(s, level) + ' XP short)';
+          }).join('\n') + '\n\n' +
+          (shortOnes.length === 1 ? 'is' : 'are') +
+          ' below the level this boss unlocks.\n\nCredit the whole group anyway?')) return;
+    }
+    showToast('✓ ' + item + ' · ' + todo.length +
+      ' student' + (todo.length === 1 ? '' : 's'));
+    todo.forEach(function (s) {
+      optimisticTap_(s, item, xp, true, function (run) { run.adminMarkOne(s.student, item); });
+    });
+  }
+
+  function renderLeaderboard() {
+    document.getElementById('leaderboardView').innerHTML = '<div class="loading">Loading…</div>';
+    google.script.run.withSuccessHandler(function (list) {
+      var html = '';
+      list.slice(0, 15).forEach(function (s) {
+        var r = s.rank;
+        var cls = r === 1 ? 'gold' : r === 2 ? 'silver' : r === 3 ? 'bronze' : '';
+        // Fall back to the roster copy, which always carries bossLevel.
+        var full = findStudent_(s.student) || s;
+        var tag = full.bossReady
+          ? '<span class="dot boss" title="Boss fight ready" style="display:inline-block;"></span>'
+          : (needsXp_(full)
+              ? '<span class="assign-chip" title="Needs more XP to advance">NEEDS XP</span>' : '');
+        html += '<div class="lb-row"><div class="lb-rank ' + cls + '">' + r + '</div>' +
+          '<div class="lb-name">' + esc(s.student) + ' <span style="color:var(--muted);font-weight:500;">· Lv ' + s.level + '</span></div>' +
+          tag +
+          '<div class="lb-xp">' + s.xp + ' XP</div></div>';
+      });
+      document.getElementById('leaderboardView').innerHTML = html || '<div class="empty">No XP logged yet.</div>';
+    }).withFailureHandler(onError).getLeaderboard();
+  }
+
+  function openStudent(name) {
+    currentStudent = DATA.students.find(function (s) { return s.student === name; });
+    if (!currentStudent) return;
+    openGroups = {};
+    renderSheetHeader();
+    switchSection('exercise');
+    document.getElementById('overlay').classList.add('open');
+    document.getElementById('sheet').classList.add('open');
+  }
+
+  function renderSheetHeader() {
+    var s = currentStudent;
+    var nAssigned = assignedFor_(s.student).length;
+    document.getElementById('sheetName').textContent = s.student;
+    document.getElementById('sheetStats').innerHTML =
+      '<div class="stat-chip">Level <b>' + s.level + '</b></div>' +
+      '<div class="stat-chip">Total XP <b>' + s.xp + '</b></div>' +
+      '<div class="stat-chip">XP to next <b>' + s.xpToNext + '</b></div>' +
+      (nAssigned ? '<div class="stat-chip">Assigned <b>' + nAssigned + '</b></div>' : '') +
+      (s.bossReady ? '<div class="stat-chip" style="color:var(--accent-boss); font-weight:700;">BOSS READY</div>' : '') +
+      (needsXp_(s) ? '<div class="stat-chip" style="color:var(--accent-manual); font-weight:700;">NEEDS XP</div>' : '') +
+      // Archiving from the card itself -- no detour through Edit. It asks
+      // first, and nothing is deleted either way.
+      '<button class="chip-btn danger" onclick="promptArchive_(\'' + escAttr(s.student) + '\')">Archive</button>';
+  }
+
+  function closeSheet() {
+    document.getElementById('overlay').classList.remove('open');
+    document.getElementById('sheet').classList.remove('open');
+  }
+
+  // Two panels now: the merged Exercises checklist and the Manual award
+  // form. 'boss' is still accepted so any old call site keeps working.
+  function switchSection(sec) {
+    if (sec === 'boss') sec = 'exercise';
+    currentSection = sec;
+    ['exercise', 'other'].forEach(function (s) {
+      document.getElementById('secTab' + cap(s)).classList.toggle('active', s === sec);
+      document.getElementById('panel' + cap(s)).classList.toggle('active', s === sec);
+    });
+    if (sec === 'exercise') renderChecklist('Exercise');
+    if (sec === 'other') renderOtherPanel();
+  }
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  function isBoss_(c) { return String(c.type).toLowerCase() === 'boss'; }
+
+  // The printed number at the front of an item name ("84. Essential
+  // Elements Quiz" -> 84), used to sort within a level and to label the
+  // folder with the range it covers.
+  function num_(c) {
+    var m = String(c.item).match(/^\s*(\d+)/);
+    return m ? Number(m[1]) : 1e9;
+  }
+  function numRange_(items) {
+    var ns = [];
+    (items || []).forEach(function (c) {
+      var m = String(c.item).match(/^\s*(\d+)/);
+      if (m) ns.push(Number(m[1]));
+    });
+    if (!ns.length) return '';
+    var lo = Math.min.apply(null, ns), hi = Math.max.apply(null, ns);
+    return lo === hi ? String(lo) : (lo + '–' + hi);
+  }
+
+  // Yellow book folders read amber, Red book folders read crimson.
+  function bookClass_(book) {
+    var b = String(book || '').toLowerCase();
+    if (b.indexOf('yellow') !== -1) return 'book-yellow';
+    if (b.indexOf('red') !== -1) return 'book-red';
+    return '';
+  }
+
+  /* ---- The checklist ----------------------------------------------------
+   * One list: exercises and boss fights together, in book order, with the
+   * bosses marked in red. They sit where they actually fall in the book
+   * (the quiz at the end of its section), so the list reads the way the
+   * page does -- no more switching tabs to find out whether 45 is a quiz.
+   *
+   * Every level is browsable; the student's current level is expanded by
+   * default and the rest are collapsed. Tapping an unchecked row credits
+   * it; tapping a checked row unchecks it.
+   * ---------------------------------------------------------------------*/
+  function renderChecklist(type) {
+    var listId = 'ExerciseList';
+    var q = (document.getElementById('exerciseSearch').value || '').toLowerCase();
+    var highlightLevel = currentStudent.level;
+
+    var doneSet = {};
+    (currentStudent.doneItems || []).forEach(function (i) { doneSet[i] = true; });
+
+    // Exercises and bosses only. Anything else on the Curriculum tab stays
+    // out, exactly as it was before the two panels were merged -- the
+    // Manual tab handles those.
+    var items = DATA.curriculum.filter(function (c) {
+      var t = String(c.type).toLowerCase();
+      return t === 'exercise' || t === 'boss';
+    });
+    var groups = {};
+    items.forEach(function (c) {
+      if (!groups[c.level]) groups[c.level] = { level: c.level, book: c.book, items: [] };
+      groups[c.level].items.push(c);
+    });
+    var groupList = Object.keys(groups).map(function (k) { return groups[k]; })
+      .sort(function (a, b) { return a.level - b.level; });
+    // Within a level, follow the printed numbering.
+    groupList.forEach(function (g) {
+      g.items.sort(function (a, b) { return num_(a) - num_(b) || a.item.localeCompare(b.item); });
+    });
+
+    var html = '';
+
+    // Assigned work rides at the top so you can see what you told them to
+    // practice without hunting for the level.
+    if (!q) {
+      var assigned = assignedFor_(currentStudent.student)
+        .map(function (name) { return items.find(function (c) { return c.item === name; }); })
+        .filter(Boolean)
+        .filter(function (c) { return !doneSet[c.item]; });
+      if (assigned.length) {
+        html += '<div class="assigned-box"><h3>⚑ Assigned — ' + assigned.length + ' to go</h3>' +
+          assigned.map(function (c) { return checkRowHtml_(c, false, 0, true); }).join('') +
+          '</div>';
+      }
+    }
+
+    groupList.forEach(function (g) {
+      var visible = g.items.filter(function (c) { return !q || c.item.toLowerCase().indexOf(q) !== -1; });
+      if (q && visible.length === 0) return;
+      var key = 'L' + g.level;
+      var isHighlight = g.level === highlightLevel;
+      var open = q ? true : (openGroups.hasOwnProperty(key) ? openGroups[key] : isHighlight);
+      // Boss fights are gated on XP: you can't clear the Level 7 boss until
+      // the student's XP actually reaches Level 7. Short = how far off. Only
+      // levels that actually contain a boss show the lock note.
+      var hasBoss = g.items.some(isBoss_);
+      var short = hasBoss ? xpShortfall_(currentStudent, g.level) : 0;
+      var range = numRange_(g.items);
+      html += '<div class="level-group ' + bookClass_(g.book) + '">' +
+        '<div class="level-group-header" onclick="toggleGroup(\'' + key + '\')">' +
+          '<span>' + esc(g.book) + ' · Level ' + g.level +
+            (range ? '<span class="numrange">' + range + '</span>' : '') +
+            (isHighlight ? '<span class="badge-current">CURRENT</span>' : '') +
+            (short ? '<span class="lock-note" style="margin-left:6px;">🔒 ' + short + ' XP short</span>' : '') +
+          '</span>' +
+          '<span class="chev" id="chev_' + key + '">' + (open ? '−' : '+') + '</span>' +
+        '</div>' +
+        '<div class="level-group-body" id="body_' + key + '" style="display:' + (open ? 'block' : 'none') + '">' +
+        visible.map(function (c) {
+          return checkRowHtml_(c, !!doneSet[c.item], isBoss_(c) ? short : 0, false);
+        }).join('') +
+        '</div></div>';
+    });
+    document.getElementById(listId).innerHTML = html || '<div class="no-items">No items match.</div>';
+  }
+
+  // One checklist row. `short` is the XP a locked boss still needs (0 for
+  // anything unlocked). `pinned` marks the copy shown in the Assigned box,
+  // which gets no flag button -- you un-assign from the main list.
+  function checkRowHtml_(c, done, short, pinned) {
+    var assigned = isAssigned_(currentStudent.student, c.item);
+    var boss = isBoss_(c);
+    var fn = done ? 'uncheckItem' : 'checkItem';
+    var cls = 'check-row' + (done ? ' done' : '') + (short ? ' locked' : '') +
+      (assigned && !pinned ? ' assigned' : '') + (boss ? ' boss' : '');
+    return '<div class="' + cls + '" ' +
+      'onclick="' + fn + '(\'' + escAttr(c.item) + '\', this, ' + c.xp + ', ' + (short || 0) + ')">' +
+      '<span class="check-circle">' + (done ? '✓' : '') + '</span>' +
+      '<span class="check-label">' + esc(c.item) + '</span>' +
+      (boss ? '<span class="boss-tag">BOSS</span>' : '') +
+      '<span class="xp-badge">' + c.xp + ' XP</span>' +
+      (pinned ? '' :
+        '<button class="flag-btn' + (assigned ? ' on' : '') + '" title="' +
+          (assigned ? 'Assigned — tap to un-assign' : 'Assign this to ' + escAttr(currentStudent.student)) + '" ' +
+          'onclick="event.stopPropagation(); toggleAssign(\'' + escAttr(c.item) + '\')">⚑</button>') +
+    '</div>';
+  }
+
+  // Assigning is a sticky note, not credit -- no XP moves, nothing hits the
+  // Log. Flips locally first so the flag responds instantly.
+  function toggleAssign(item) { toggleAssignFor_(currentStudent.student, item); }
+
+  // `quiet` is for the grid's All button, which reports the batch itself
+  // rather than firing one toast per student.
+  function toggleAssignFor_(name, item, quiet) {
+    var list = EXTRAS.assignments[name] = assignedFor_(name).slice();
+    var on = list.indexOf(item) === -1;
+    if (on) list.push(item);
+    else EXTRAS.assignments[name] = list.filter(function (i) { return i !== item; });
+    renderAfterTap_();
+    if (!quiet) showToast(on ? ('⚑ Assigned to ' + name) : ('Un-assigned · ' + name));
+    google.script.run.withSuccessHandler(function (res) {
+      if (!res || !res.ok) { showToast((res && res.error) || 'Not saved'); loadExtras(); }
+    }).withFailureHandler(function (err) {
+      // Say what actually went wrong instead of guessing. A missing script
+      // is only one of the ways this can fail -- a locked sheet, a renamed
+      // tab and a permissions problem all land here too, and each needs a
+      // different fix.
+      var msg = (err && (err.message || err.toString())) || 'unknown error';
+      showToast('⚠ Not saved — ' + msg);
+      console.error('qcAssign failed:', err);
+      loadExtras();
+    }).qcAssign(name, item, on);
+  }
+
+  function toggleGroup(key) {
+    var body = document.getElementById('body_' + key);
+    var chev = document.getElementById('chev_' + key);
+    var nowOpen = body.style.display === 'none';
+    body.style.display = nowOpen ? 'block' : 'none';
+    chev.textContent = nowOpen ? '−' : '+';
+    openGroups[key] = nowOpen;
+  }
+
+  function rerenderCurrentChecklist() {
+    if (currentSection === 'exercise') renderChecklist('Exercise');
+  }
+
+  // `short` > 0 means this is a boss the student's XP doesn't reach yet.
+  // It asks rather than refuses -- there are plenty of good reasons to
+  // override (they tested up, the book's XP was wrong, you said so).
+  function checkItem(item, row, xp, short) {
+    var s = currentStudent;
+    if (hasItem_(s, item)) return;
+    if (short > 0 && !confirm(
+        s.student + ' is ' + short + ' XP short of the level this boss unlocks.\n\n' +
+        'Normally they\'d go back and finish exercises they skipped first.\n\n' +
+        'Credit it anyway?')) return;
+    showToast('✓ +' + xp + ' XP · ' + s.student);
+    optimisticTap_(s, item, xp, true, function (run) { run.adminMarkOne(s.student, item); });
+  }
+
+  // Removes a checked item from the Log (and its XP). Asks first so a
+  // stray tap while scrolling can't wipe out real credit.
+  function uncheckItem(item, row, xp) {
+    var s = currentStudent;
+    if (!hasItem_(s, item)) return;
+    if (!confirm('Uncheck "' + item + '" for ' + s.student + '?\n\nThis removes ' + xp + ' XP.')) return;
+    showToast('✕ −' + xp + ' XP · ' + s.student);
+    optimisticTap_(s, item, xp, false, function (run) { run.adminUnmark(s.student, item); });
+  }
+
+  function renderOtherPanel() {
+    var html =
+      '<label>Reason / note</label>' +
+      '<input type="text" id="otherItem" placeholder="e.g. Helped tune the class">' +
+      '<label>XP</label>' +
+      '<input type="number" id="otherXp" value="5">' +
+      '<button class="primary-btn other" onclick="submitOther()">Log credit</button>';
+    document.getElementById('panelOther').innerHTML = html;
+  }
+
+  function submitOther() {
+    var btn = event.target;
+    btn.disabled = true;
+    btn.textContent = 'Logging…';
+    var reason = document.getElementById('otherItem').value || 'Manual award';
+    var xp = document.getElementById('otherXp').value;
+    google.script.run.withSuccessHandler(function (res) {
+      btn.disabled = false;
+      btn.textContent = 'Log credit';
+      if (!res.ok) { showToast(res.error || 'Failed'); return; }
+      Object.assign(currentStudent, res.stats);
+      showToast('✓ Logged ' + res.xp + ' XP for ' + currentStudent.student);
+      renderSheetHeader();
+      renderStudents();
+      refreshData();
+    }).withFailureHandler(function (err) { btn.disabled = false; btn.textContent = 'Log credit'; showToast('Error: ' + (err.message || err)); })
+      .adminAward(currentStudent.student, xp, reason);
+  }
+
+  function submitUndo() {
+    if (!currentStudent) return;
+    var btn = event.target;
+    btn.disabled = true;
+    google.script.run.withSuccessHandler(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { showToast(res.error || 'Nothing to undo'); return; }
+      showToast('↩ Undid ' + (res.undone && res.undone.item ? res.undone.item : 'last entry') + ' for ' + currentStudent.student);
+      refreshData(function () {
+        var refreshed = DATA.students.find(function (s) { return s.student === currentStudent.student; });
+        if (refreshed) currentStudent = refreshed;
+        renderStudents();
+        renderSheetHeader();
+        rerenderCurrentChecklist();
+      });
+    }).withFailureHandler(function (err) { btn.disabled = false; showToast('Error: ' + (err.message || err)); })
+      .adminUndo(currentStudent.student);
+  }
+
+  function submitClassAward() {
+    var btn = event.target;
+    var xp = document.getElementById('classXp').value;
+    var reason = document.getElementById('classReason').value || 'Class award';
+    btn.disabled = true;
+    btn.textContent = 'Awarding…';
+    google.script.run.withSuccessHandler(function (res) {
+      btn.disabled = false;
+      btn.textContent = 'Award entire class';
+      if (!res.ok) { showToast(res.error || 'Failed'); return; }
+      showToast('✓ Gave ' + res.xpEach + ' XP to ' + res.marked + ' students');
+      refreshData(renderStudents);
+    }).withFailureHandler(function (err) {
+      btn.disabled = false;
+      btn.textContent = 'Award entire class';
+      showToast('Error: ' + (err.message || err));
+    }).adminAwardAll(xp, reason);
+  }
+
+  function submitUndoBatch() {
+    var btn = event.target;
+    btn.disabled = true;
+    btn.textContent = 'Undoing…';
+    google.script.run.withSuccessHandler(function (res) {
+      btn.disabled = false;
+      btn.textContent = '↩ Undo last class-wide action';
+      if (!res.ok) { showToast(res.error || 'Nothing to undo'); return; }
+      showToast('↩ Removed "' + res.item + '" from ' + res.removed + ' student' + (res.removed === 1 ? '' : 's'));
+      refreshData(renderStudents);
+    }).withFailureHandler(function (err) {
+      btn.disabled = false;
+      btn.textContent = '↩ Undo last class-wide action';
+      showToast('Error: ' + (err.message || err));
+    }).adminUndoBatch();
+  }
+
+  // ---- Side Quests: any student can earn these, created on the fly,
+  // stored on the "Side Quests" sheet tab -- no redeploy needed to add one.
+  function renderSideQuestLevelOptions() {
+    var sel = document.getElementById('sqLevel');
+    var max = DATA.maxLevel || 30;
+    var html = '<option value="0">No requirement — any level</option>';
+    for (var i = 1; i <= max; i++) html += '<option value="' + i + '">Level ' + i + '+</option>';
+    sel.innerHTML = html;
+  }
+
+  var editingQuest = null;
+
+  /* ---- Quest icons -------------------------------------------------------
+   * Two things to get right here.
+   *
+   * 1. Uniqueness. The TV board draws one slot per quest in sheet order
+   *    and lights up the ones a student has finished, so two quests
+   *    sharing an icon are two slots nobody can tell apart. The picker
+   *    dims icons already in use and warns on a typed duplicate -- it
+   *    doesn't block it, in case you want a matched pair on purpose.
+   *
+   * 2. Fonts. The classroom TV's browser has no color emoji font, so a
+   *    real emoji draws as nothing at all -- a blank badge, no fallback.
+   *    That's what the old ⭐ default did. Everything in TEXT_ICONS is an
+   *    ordinary text character that any browser can draw; EMOJI_ICONS is
+   *    kept separate and labelled, because on the Pi they're a gamble.
+   * ----------------------------------------------------------------------*/
+  var TEXT_ICONS = ('★ ☆ ✦ ✧ ✪ ✫ ✭ ✮ ✯ ✶ ✷ ✸ ✹ ❖ ◆ ◇ ◈ ● ○ ◎ ▲ ▼ ■ ' +
+    '♪ ♫ ♬ ♩ ♯ ♭ ✓ ✔ ✗ ⚑ ♞ ⌂ ✎ † ‡ §').split(' ');
+  var EMOJI_ICONS = ('⭐ 🏆 🥇 🔥 💎 👑 🎯 🎺 🎷 🥁 🎻 🎹 🎵 🚀 🦅 🐉 🦉 🐺 🦁 ' +
+    '🧠 💪 🧭 🌙 ❄ 🍀 📚 ⏱ 📣 🤝').split(' ');
+
+  function isEmojiIcon_(ic) { return EMOJI_ICONS.indexOf(ic) !== -1 || /[\uD800-\uDBFF]/.test(ic); }
+
+  function iconOwners_(icon, exceptName) {
+    return (DATA.sideQuests || []).filter(function (q) {
+      return (q.icon || '★') === icon && q.name !== exceptName;
+    }).map(function (q) { return q.name; });
+  }
+
+  function iconBtn_(ic, current) {
+    var taken = iconOwners_(ic, editingQuest && editingQuest.name).length > 0;
+    var sel = ic === current;
+    return '<button type="button" onclick="pickIcon(\'' + escAttr(ic) + '\')" ' +
+      'title="' + (taken ? 'Already used by another quest' : 'Free') + '" ' +
+      'style="width:40px; height:40px; font-size:21px; line-height:1; cursor:pointer; ' +
+        'border-radius:10px; background:var(--card-2); color:var(--text); ' +
+        'border:2px solid ' + (sel ? 'var(--accent-manual)' : 'var(--border)') + '; ' +
+        'opacity:' + (taken && !sel ? '.32' : '1') + ';">' + esc(ic) + '</button>';
+  }
+
+  function renderIconPicker() {
+    var current = document.getElementById('sqIcon').value;
+    function group(label, note, list) {
+      return '<div style="width:100%; font-size:11px; font-weight:700; color:var(--muted); ' +
+          'margin:2px 0 4px; text-transform:uppercase; letter-spacing:.04em;">' + label +
+          (note ? ' <span style="font-weight:400; text-transform:none; letter-spacing:0;">' + note + '</span>' : '') +
+        '</div>' +
+        '<div style="display:flex; flex-wrap:wrap; gap:6px; width:100%; margin-bottom:10px;">' +
+          list.map(function (ic) { return iconBtn_(ic, current); }).join('') +
+        '</div>';
+    }
+    document.getElementById('sqIconPicker').innerHTML =
+      group('Safe on the TV', '— plain characters, always draw', TEXT_ICONS) +
+      group('Emoji', '— may show as a blank badge on the TV; test one first', EMOJI_ICONS);
+  }
+
+  function pickIcon(ic) {
+    document.getElementById('sqIcon').value = ic;
+    checkIconClash();
+    renderIconPicker();
+  }
+
+  function checkIconClash() {
+    var ic = document.getElementById('sqIcon').value.trim();
+    var el = document.getElementById('sqIconTaken');
+    var owners = ic ? iconOwners_(ic, editingQuest && editingQuest.name) : [];
+    var notes = [];
+    if (owners.length) notes.push('Also used by: ' + owners.join(', '));
+    if (ic && isEmojiIcon_(ic)) notes.push('Emoji — may be blank on the TV');
+    el.innerHTML = notes.length
+      ? notes.map(function (n) { return '⚠ ' + esc(n); }).join('<br>') : '';
+  }
+
+  function renderSideQuestList() {
+    var list = DATA.sideQuests || [];
+    var cards = list.map(function (q) {
+      var ic = q.icon || '★';
+      var dupe = iconOwners_(ic, q.name).length > 0;
+      var risky = isEmojiIcon_(ic);
+      var warn = dupe ? 'Shared with another quest' : (risky ? 'Emoji — may be blank on the TV' : '');
+      return '<div class="student-card">' +
+        '<div onclick="openSideQuest(\'' + escAttr(q.name) + '\')" style="cursor:pointer;">' +
+        '<div class="student-name">' +
+          '<span style="font-size:22px; line-height:1; margin-right:6px; border-radius:6px;' +
+            (dupe ? ' outline:2px solid var(--accent-boss);'
+                  : risky ? ' outline:2px dashed var(--accent-manual);' : '') + '" ' +
+            'title="' + escAttr(warn) + '">' + esc(ic) + '</span>' +
+          esc(q.name) + '</div>' +
+        '<div class="student-meta"><span class="level-pill">' + q.xp + ' XP</span>' +
+        '<span>' + (q.levelRequired ? 'Lv ' + q.levelRequired + '+' : 'Any level') + '</span></div>' +
+        '</div>' +
+        '<div style="display:flex; justify-content:flex-end; gap:6px; margin-top:10px;">' +
+        '<button class="icon-btn" style="width:26px; height:26px; font-size:12px;" title="Edit" ' +
+          'onclick="event.stopPropagation(); openEditSideQuest(\'' + escAttr(q.name) + '\')">✎</button>' +
+        '<button class="icon-btn" style="width:26px; height:26px; font-size:12px;" title="Delete" ' +
+          'onclick="event.stopPropagation(); confirmDeleteSideQuest(\'' + escAttr(q.name) + '\')">🗑</button>' +
+        '</div></div>';
+    }).join('');
+    document.getElementById('sideQuestList').innerHTML =
+      (list.length ? '<div class="student-grid">' + cards + '</div>' : '<div class="empty">No side quests yet — add one above.</div>');
+  }
+
+  function submitSideQuestForm() {
+    var btn = event.target;
+    var name = document.getElementById('sqName').value;
+    var xp = document.getElementById('sqXp').value;
+    var levelRequired = document.getElementById('sqLevel').value;
+    var icon = document.getElementById('sqIcon').value.trim() || '★';
+    var wasEditing = !!editingQuest;
+    btn.disabled = true;
+    btn.textContent = wasEditing ? 'Saving…' : 'Adding…';
+    var runner = google.script.run.withSuccessHandler(function (res) {
+      btn.disabled = false;
+      btn.textContent = wasEditing ? 'Save changes' : '+ Add Side Quest';
+      if (!res.ok) { showToast(res.error || 'Failed'); return; }
+      showToast(wasEditing ? ('✓ Updated "' + res.quest.name + '"') : ('✓ Added "' + res.quest.name + '"'));
+      cancelEditSideQuest();
+      // Icon goes in its own call (QuestIcons.gs) so this works whether or
+      // not adminCreateSideQuest/adminUpdateSideQuest forward an icon.
+      google.script.run
+        .withSuccessHandler(function () {
+          refreshData(function () { renderSideQuestList(); renderStudents(); renderIconPicker(); });
+        })
+        .withFailureHandler(function () {
+          showToast('Quest saved, but the icon didn’t stick — add QuestIcons.gs');
+          refreshData(function () { renderSideQuestList(); renderStudents(); renderIconPicker(); });
+        })
+        .adminSetQuestIcon(res.quest.name, icon);
+    }).withFailureHandler(function (err) {
+      btn.disabled = false;
+      btn.textContent = wasEditing ? 'Save changes' : '+ Add Side Quest';
+      showToast('Error: ' + (err.message || err));
+    });
+    if (wasEditing) runner.adminUpdateSideQuest(editingQuest.name, name, xp, levelRequired, icon);
+    else runner.adminCreateSideQuest(name, xp, levelRequired, icon);
+  }
+
+  function openEditSideQuest(name) {
+    var q = (DATA.sideQuests || []).find(function (x) { return x.name === name; });
+    if (!q) return;
+    editingQuest = q;
+    document.getElementById('sqName').value = q.name;
+    document.getElementById('sqXp').value = q.xp;
+    document.getElementById('sqLevel').value = String(q.levelRequired || 0);
+    document.getElementById('sqIcon').value = q.icon || '★';
+    checkIconClash();
+    renderIconPicker();
+    document.getElementById('sqFormTitle').textContent = 'Editing "' + q.name + '"';
+    document.getElementById('sqFormBtn').textContent = 'Save changes';
+    document.getElementById('sqCancelEdit').style.display = '';
+    document.getElementById('sqName').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function cancelEditSideQuest() {
+    editingQuest = null;
+    document.getElementById('sqName').value = '';
+    document.getElementById('sqXp').value = 10;
+    document.getElementById('sqLevel').value = '0';
+    // Pre-fill the first icon nothing else is using, so a new quest gets a
+    // distinct TV slot without you having to think about it.
+    var free = TEXT_ICONS.find(function (ic) { return iconOwners_(ic, null).length === 0; });
+    document.getElementById('sqIcon').value = free || '★';
+    checkIconClash();
+    renderIconPicker();
+    document.getElementById('sqFormTitle').textContent = '';
+    document.getElementById('sqFormBtn').textContent = '+ Add Side Quest';
+    document.getElementById('sqCancelEdit').style.display = 'none';
+  }
+
+  function confirmDeleteSideQuest(name) {
+    if (!confirm('Delete "' + name + '"?\n\nStudents who already earned it keep their XP — this only removes it from the create list so no one new can be awarded it.')) return;
+    google.script.run.withSuccessHandler(function (res) {
+      if (!res.ok) { showToast(res.error || 'Failed'); return; }
+      showToast('🗑 Deleted "' + res.deleted + '"');
+      if (editingQuest && editingQuest.name === name) cancelEditSideQuest();
+      refreshData(function () { renderSideQuestList(); renderStudents(); });
+    }).withFailureHandler(function (err) { showToast('Error: ' + (err.message || err)); })
+      .adminDeleteSideQuest(name);
+  }
+
+  function openSideQuest(name) {
+    currentQuest = (DATA.sideQuests || []).find(function (q) { return q.name === name; });
+    if (!currentQuest) return;
+    document.getElementById('sqSheetName').textContent =
+      (currentQuest.icon || '★') + '  ' + currentQuest.name;
+    document.getElementById('sqSheetStats').innerHTML =
+      '<div class="stat-chip">' + currentQuest.xp + ' XP</div>' +
+      '<div class="stat-chip">' + (currentQuest.levelRequired ? 'Requires Level ' + currentQuest.levelRequired + '+' : 'Any level') + '</div>';
+    document.getElementById('sqStudentSearch').value = '';
+    renderSqStudentList();
+    document.getElementById('sqOverlay').classList.add('open');
+    document.getElementById('sqSheet').classList.add('open');
+  }
+
+  function closeSqSheet() {
+    document.getElementById('sqOverlay').classList.remove('open');
+    document.getElementById('sqSheet').classList.remove('open');
+  }
+
+  // Tapping an unchecked student awards the quest; tapping a checked
+  // student removes it.
+  function renderSqStudentList() {
+    if (!currentQuest) return;
+    var q = (document.getElementById('sqStudentSearch').value || '').toLowerCase();
+    var minLevel = currentQuest.levelRequired || 0;
+    var html = '', hiddenBelowLevel = 0;
+    DATA.students.forEach(function (s) {
+      if (q && s.student.toLowerCase().indexOf(q) === -1) return;
+      var done = (s.doneItems || []).indexOf(currentQuest.name) !== -1;
+      if (!done && minLevel && s.level < minLevel) { hiddenBelowLevel++; return; }
+      var fn = done ? 'removeSideQuestFrom' : 'awardSideQuestTo';
+      html += '<div class="check-row' + (done ? ' done' : '') + '" ' +
+        'onclick="' + fn + '(\'' + escAttr(s.student) + '\', this)">' +
+        '<span class="check-circle">' + (done ? '✓' : '') + '</span>' +
+        '<span class="check-label">' + esc(s.student) + ' <span style="color:var(--muted);">· Lv ' + s.level + '</span></span>' +
+        '</div>';
+    });
+    var note = hiddenBelowLevel
+      ? '<div class="no-items">' + hiddenBelowLevel + ' student' + (hiddenBelowLevel === 1 ? '' : 's') + ' below the required level not shown.</div>'
+      : '';
+    document.getElementById('sqStudentList').innerHTML = (html || '<div class="no-items">No students match.</div>') + note;
+  }
+
+  function findStudent_(name) {
+    return DATA.students.find(function (x) { return x.student === name; });
+  }
+
+  function awardSideQuestTo(student, row) {
+    var s = findStudent_(student), quest = currentQuest;
+    if (!s || hasItem_(s, quest.name)) return;
+    showToast('✓ +' + quest.xp + ' XP · ' + student);
+    optimisticTap_(s, quest.name, quest.xp, true, function (run) {
+      run.adminAwardSideQuest(student, quest.name);
+    });
+  }
+
+  function removeSideQuestFrom(student, row) {
+    var s = findStudent_(student), quest = currentQuest;
+    if (!s || !hasItem_(s, quest.name)) return;
+    if (!confirm('Remove "' + quest.name + '" from ' + student + '?\n\nThis takes away the XP it gave.')) return;
+    // Past awards may have used a different XP value, so the exact
+    // amount comes back from the server; this is just the local estimate.
+    showToast('✕ Removed "' + quest.name + '" · ' + student);
+    optimisticTap_(s, quest.name, quest.xp, false, function (run) {
+      run.adminUnmark(student, quest.name);
+    });
+  }
+
+  // ---- Student Info: full profile fields, used for both editing an
+  // existing student (pencil icon) and the "+" Add Student flow. Only
+  // Jacket Number is sourced from the sheet (Uniform Inventory tab) since
+  // that's real inventory that changes -- everything else is a fixed list.
+  var GENDERS = ['Male', 'Female'];
+  // Stored as bare digits ("5", "6", "7", "8") to match how Grade was
+  // already being entered on the Roster before this dropdown existed --
+  // GRADE_LABELS is just the friendly text shown in the UI.
+  var GRADES = ['5', '6', '7', '8'];
+  var GRADE_LABELS = { '5': '5th Grade', '6': '6th Grade', '7': '7th Grade', '8': '8th Grade' };
+  var CHEST_SIZES = rangeList(26, 56, 1);
+  var WAIST_SIZES = rangeList(22, 50, 1);
+  var PANT_SIZES = ['Youth Small', 'Youth Medium', 'Youth Large', 'Youth X-Large',
+    'Adult XS', 'Adult Small', 'Adult Medium', 'Adult Large', 'Adult X-Large', 'Adult XX-Large', 'Adult XXX-Large'];
+  var SHOE_SIZES = rangeList(3, 14, 0.5);
+  var INSTRUMENTS = ['Flute', 'Oboe', 'Bassoon', 'Clarinet', 'Bass Clarinet', 'Alto Sax', 'Tenor Sax',
+    'Baritone Sax', 'Trumpet', 'Horn', 'Trombone', 'Euphonium', 'Tuba', 'Bass Guitar', 'Percussion'];
+  var INSTRUMENT_STATUSES = ['Owned', 'Renting', 'School'];
+  var LESSON_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  var infoMode = 'edit'; // 'edit' | 'add'
+  var infoEditingName = null;
+
+  function rangeList(start, end, step) {
+    var out = [];
+    for (var v = start; v <= end + 1e-9; v += step) out.push(Math.round(v * 2) / 2);
+    return out;
+  }
+
+  function fillSelect(id, options, blankLabel) {
+    var html = blankLabel ? '<option value="">' + blankLabel + '</option>' : '';
+    options.forEach(function (o) { html += '<option value="' + esc(String(o)) + '">' + esc(String(o)) + '</option>'; });
+    document.getElementById(id).innerHTML = html;
+  }
+
+  // Grade needs value != label (stored as "6", shown as "6th Grade"), so
+  // it can't use the generic fillSelect above.
+  function fillGradeSelect() {
+    var html = '<option value="">— select —</option>';
+    GRADES.forEach(function (g) { html += '<option value="' + g + '">' + esc(GRADE_LABELS[g]) + '</option>'; });
+    document.getElementById('infoGrade').innerHTML = html;
+  }
+
+  // Grade may show up as "5", "5th", "5th Grade", or a stray typo --
+  // pull out just the leading digit so grouping/matching works no matter
+  // how it was entered (dropdown, direct sheet edit, or legacy data).
+  function gradeDigit_(v) {
+    var m = String(v || '').match(/\d+/);
+    return m ? m[0] : '';
+  }
+
+  function fillStaticSelects() {
+    fillSelect('infoGender', GENDERS, '— select —');
+    fillGradeSelect();
+    fillSelect('infoChest', CHEST_SIZES, '— select —');
+    fillSelect('infoWaist', WAIST_SIZES, '— select —');
+    fillSelect('infoPant', PANT_SIZES, '— select —');
+    fillSelect('infoShoe', SHOE_SIZES, '— select —');
+    fillSelect('infoInstrument', INSTRUMENTS, '— select —');
+    fillSelect('infoSecondaryInstrument', INSTRUMENTS, '— select —');
+    fillSelect('infoStatus', INSTRUMENT_STATUSES, '— select —');
+    fillSelect('infoLessonDay', LESSON_DAYS, 'Not set');
+  }
+  fillStaticSelects();
+
+  // Only offers jacket numbers not already held by a DIFFERENT student --
+  // keepValue lets the student currently being edited keep seeing their
+  // own number in the list. Server-side also rejects a collision on save,
+  // so this stays correct even if the sheet changed since the page loaded.
+  function fillJacketSelect(keepValue) {
+    var taken = {};
+    DATA.students.forEach(function (s) {
+      var jn = s.info && s.info.jacketNumber;
+      if (jn && String(jn) !== String(keepValue || '')) taken[String(jn)] = s.student;
+    });
+    var available = (DATA.jacketNumbers || []).filter(function (n) { return !taken[String(n)]; });
+    fillSelect('infoJacket', available, 'None assigned');
+  }
+
+  function openStudentInfo(mode) {
+    infoMode = mode;
+    if (mode === 'add') {
+      infoEditingName = null;
+      document.getElementById('infoSheetTitle').textContent = 'Add Student';
+      document.getElementById('infoRenameNote').style.display = 'none';
+      document.getElementById('infoSaveBtn').textContent = 'Add student';
+      document.getElementById('infoArchiveBtn').style.display = 'none';
+      document.getElementById('infoArchiveNote').style.display = 'none';
+      fillJacketSelect(null);
+      clearInfoForm();
+    } else {
+      if (!currentStudent) return;
+      infoEditingName = currentStudent.student;
+      document.getElementById('infoSheetTitle').textContent = 'Edit Student Info';
+      document.getElementById('infoRenameNote').style.display = '';
+      document.getElementById('infoSaveBtn').textContent = 'Save changes';
+      var isArchived = (EXTRAS.archived || []).indexOf(infoEditingName) !== -1;
+      var archBtn = document.getElementById('infoArchiveBtn');
+      archBtn.style.display = '';
+      archBtn.textContent = isArchived ? 'Bring back onto the roster' : 'Archive student';
+      archBtn.style.color = isArchived ? 'var(--accent-done)' : 'var(--accent-boss)';
+      archBtn.style.borderColor = isArchived ? 'var(--accent-done)' : 'var(--accent-boss)';
+      document.getElementById('infoArchiveNote').style.display = isArchived ? 'none' : '';
+      fillJacketSelect(currentStudent.info && currentStudent.info.jacketNumber);
+      fillInfoForm(currentStudent.info || {});
+    }
+    document.getElementById('infoOverlay').classList.add('open');
+    document.getElementById('infoSheet').classList.add('open');
+  }
+
+  function closeInfoSheet() {
+    document.getElementById('infoOverlay').classList.remove('open');
+    document.getElementById('infoSheet').classList.remove('open');
+  }
+
+  function clearInfoForm() {
+    document.getElementById('infoName').value = '';
+    document.getElementById('infoSerial').value = '';
+    document.getElementById('infoSecondarySerial').value = '';
+    ['infoGender', 'infoGrade', 'infoChest', 'infoWaist', 'infoJacket', 'infoPant', 'infoShoe', 'infoInstrument', 'infoSecondaryInstrument', 'infoStatus', 'infoLessonDay']
+      .forEach(function (id) { document.getElementById(id).value = ''; });
+    document.getElementById('infoHasSecondary').checked = false;
+    toggleSecondaryFields();
+  }
+
+  function fillInfoForm(info) {
+    document.getElementById('infoName').value = info.name || currentStudent.student || '';
+    document.getElementById('infoGender').value = info.gender || '';
+    document.getElementById('infoGrade').value = gradeDigit_(info.grade);
+    document.getElementById('infoChest').value = info.chestSize || '';
+    document.getElementById('infoWaist').value = info.waistSize || '';
+    document.getElementById('infoJacket').value = info.jacketNumber || '';
+    document.getElementById('infoPant').value = info.pantSize || '';
+    document.getElementById('infoShoe').value = info.shoeSize || '';
+    document.getElementById('infoInstrument').value = info.instrument || '';
+    document.getElementById('infoLessonDay').value = info.lessonDay || '';
+    document.getElementById('infoSerial').value = info.serialNumber || '';
+    document.getElementById('infoHasSecondary').checked = !!info.hasSecondary;
+    document.getElementById('infoSecondaryInstrument').value = info.secondaryInstrument || '';
+    document.getElementById('infoSecondarySerial').value = info.secondarySerial || '';
+    document.getElementById('infoStatus').value = info.instrumentStatus || '';
+    toggleSecondaryFields();
+  }
+
+  function toggleSecondaryFields() {
+    document.getElementById('secondaryFields').style.display =
+      document.getElementById('infoHasSecondary').checked ? '' : 'none';
+  }
+
+  function collectInfoForm() {
+    return {
+      name: (document.getElementById('infoName').value || '').trim(),
+      gender: document.getElementById('infoGender').value,
+      grade: document.getElementById('infoGrade').value,
+      chestSize: document.getElementById('infoChest').value,
+      waistSize: document.getElementById('infoWaist').value,
+      jacketNumber: document.getElementById('infoJacket').value,
+      pantSize: document.getElementById('infoPant').value,
+      shoeSize: document.getElementById('infoShoe').value,
+      instrument: document.getElementById('infoInstrument').value,
+      lessonDay: document.getElementById('infoLessonDay').value,
+      serialNumber: (document.getElementById('infoSerial').value || '').trim(),
+      hasSecondary: document.getElementById('infoHasSecondary').checked,
+      secondaryInstrument: document.getElementById('infoSecondaryInstrument').value,
+      secondarySerial: (document.getElementById('infoSecondarySerial').value || '').trim(),
+      instrumentStatus: document.getElementById('infoStatus').value,
+    };
+  }
+
+  function submitStudentInfo() {
+    var btn = event.target;
+    var info = collectInfoForm();
+    if (!info.name) { showToast("Name can't be empty"); return; }
+    var wasAdding = infoMode === 'add';
+    btn.disabled = true;
+    btn.textContent = wasAdding ? 'Adding…' : 'Saving…';
+    var runner = google.script.run.withSuccessHandler(function (res) {
+      btn.disabled = false;
+      btn.textContent = wasAdding ? 'Add student' : 'Save changes';
+      if (!res.ok) { showToast(res.error || 'Failed'); return; }
+      showToast(wasAdding ? ('✓ Added ' + res.student) : ('✓ Saved ' + res.student));
+      closeInfoSheet();
+      refreshData(function () {
+        renderStudents();
+        if (!wasAdding) {
+          var refreshed = DATA.students.find(function (s) { return s.student === res.student; });
+          if (refreshed) {
+            currentStudent = refreshed;
+            renderSheetHeader();
+            rerenderCurrentChecklist();
+          }
+        }
+      });
+    }).withFailureHandler(function (err) {
+      btn.disabled = false;
+      btn.textContent = wasAdding ? 'Add student' : 'Save changes';
+      showToast('Error: ' + (err.message || err));
+    });
+    if (wasAdding) runner.adminCreateStudent(info);
+    else runner.adminUpdateStudentInfo(infoEditingName, info);
+  }
+
+  function showToast(msg) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function () { t.classList.remove('show'); }, 2600);
+  }
+
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  }); }
+  // For a value placed inside a JS string ('...') inside an HTML attribute
+  // ("..."). Escapes backslashes and apostrophes for the JS string, then
+  // double quotes/ampersands/brackets for the attribute -- the old version
+  // missed double quotes, so an item like 150. "Surprise Symphony" broke
+  // its row's onclick and couldn't be tapped.
+  function escAttr(s) {
+    return String(s)
+      .replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+      .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+</script>
+
+</body>
+</html>

@@ -18,6 +18,7 @@
       --accent-exercise: #4f8ff0;
       --accent-manual: #d6a94f;
       --accent-done: #3fbf7f;
+      --accent-required: #5bc8f5;
       --border: #2c3355;
       --radius: 14px;
     }
@@ -218,6 +219,30 @@
     .check-row.locked .check-circle { border-style: dashed; }
     .lock-note { font-size: 11px; color: var(--accent-manual); font-weight: 700; white-space: nowrap; flex-shrink: 0; }
 
+    /* ---- Required exercises ---------------------------------------------
+     * Marked required means this exercise gates its level's boss fight,
+     * for everyone. Light blue, and it stays on once the row is done --
+     * it's a property of the exercise, not a to-do, so you want to see
+     * the shape of the level whether or not this student has got there.
+     * Amber (assigned) sits on top of it: that one is about this student
+     * right now.
+     * --------------------------------------------------------------------*/
+    .check-row.required { background: rgba(91, 200, 245, .15); }
+    .check-row.required .check-label { color: #a5e2fb; }
+    .check-row.required .check-circle { border-color: var(--accent-required); }
+    .req-btn {
+      flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; cursor: pointer;
+      border: 1px solid var(--border); background: var(--card); color: var(--muted);
+      font-size: 10px; font-weight: 800; line-height: 1; padding: 0; font-family: inherit;
+    }
+    .req-btn.on { background: var(--accent-required); color: #06293a; border-color: transparent; }
+    /* How many required exercises this student still owes before the
+       boss on this row counts as earned. */
+    .need-note {
+      font-size: 11px; color: var(--accent-required); font-weight: 700;
+      white-space: nowrap; flex-shrink: 0;
+    }
+
     /* ---- Assigned work --------------------------------------------------
      * What you've told this student to go practice. The whole row carries
      * the amber now, not just the bar on the left, so scrolling a level you
@@ -235,10 +260,8 @@
     .check-row.assigned.boss { background: rgba(214, 169, 79, .30); }
     .check-row.assigned.boss .check-label { color: #ff8e86; }
     .check-row.assigned.boss .xp-badge { background: var(--accent-boss); color: #fff; }
-    /* Credited work wins over assigned -- it's done, stop shouting about it. */
-    .check-row.assigned.done { background: none; }
-    .check-row.assigned.done .check-label { color: var(--text); font-weight: 400; }
-    .check-row.assigned.done .xp-badge { background: var(--card-2); color: var(--text); }
+    /* Credited work is never given the .assigned class in the first
+       place -- see checkRowHtml_ -- so a done row simply reads as done. */
     .flag-btn {
       flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; cursor: pointer;
       border: 1px solid var(--border); background: var(--card); color: var(--muted);
@@ -335,9 +358,18 @@
       border-right: 1px solid var(--border);
     }
     .grid-table thead th.gx { z-index: 4; }
-    .gname { font-size: 11.5px; font-weight: 700; line-height: 1.15; width: 52px; }
-    .gname .gl { display: block; font-size: 10px; color: var(--muted); font-weight: 600; margin-top: 2px; }
-    .gname .gd { display: block; width: 7px; height: 7px; border-radius: 50%; margin: 3px auto 0; }
+    /* Column headings read bottom-up: status dot, then level, then the
+       name sitting on the baseline right above its column of boxes. The
+       name is the thing you're aiming at, so it's the biggest and the
+       closest to the grid. Two lines before it wraps. */
+    .grid-table thead th { text-align: center; vertical-align: bottom; }
+    .gname {
+      width: 84px; margin: 0 auto; text-align: center;
+      display: flex; flex-direction: column; justify-content: flex-end;
+    }
+    .gname .gd { width: 9px; height: 9px; border-radius: 50%; margin: 0 auto 4px; }
+    .gname .gl { display: block; font-size: 12px; color: var(--muted); font-weight: 700; margin-bottom: 3px; }
+    .gname .gn { display: block; font-size: 17px; font-weight: 800; line-height: 1.12; }
     .gname .gd.boss { background: var(--accent-boss); }
     .gname .gd.needsxp { background: var(--accent-manual); }
 
@@ -374,9 +406,7 @@
     }
     .cell.done { background: var(--accent-done); border-color: var(--accent-done); color: #fff; }
     .cell.assigned { background: var(--accent-manual); border-color: var(--accent-manual); color: #14161f; }
-    /* Assigned AND done: it got practiced and credited. Green wins, with an
-       amber ring so you can still see it was on their assignment list. */
-    .cell.done.assigned { background: var(--accent-done); border-color: var(--accent-manual); color: #fff; }
+
     .cell.locked { border-style: dashed; opacity: .5; }
     .cell:active { transform: scale(.9); }
     .grid-empty { color: var(--muted); font-size: 13px; padding: 24px 16px; }
@@ -659,7 +689,7 @@
    * All optional: if that script isn't installed yet, the page still runs,
    * the boss gate just stays open and the Archived filter stays empty.
    * ---------------------------------------------------------------------*/
-  var EXTRAS = { levels: [], archived: [], assignments: {} };
+  var EXTRAS = { levels: [], archived: [], assignments: {}, required: [] };
   var EXTRAS_OK = false;
 
   google.script.run.withSuccessHandler(onData).withFailureHandler(onError).adminData();
@@ -710,6 +740,39 @@
   function needsXp_(s) {
     if (!EXTRAS.levels.length) return false;
     return (s.bossLevel || 0) >= xpLevelOf_(s);
+  }
+
+  // Items marked required gate their own level's boss fight, for every
+  // student. Server side this lives on the Requirements tab; here it
+  // arrives in EXTRAS.required as a flat list of item names.
+  function isRequired_(item) { return (EXTRAS.required || []).indexOf(item) !== -1; }
+
+  function requiredAtLevel_(level) {
+    return (EXTRAS.required || []).filter(function (item) {
+      var c = DATA.curriculum.find(function (x) { return x.item === item; });
+      return c && Number(c.level) === Number(level);
+    });
+  }
+
+  // What this student still owes before that level's boss should count.
+  function missingRequiredFor_(s, level) {
+    var done = {};
+    (s.doneItems || []).forEach(function (i) { done[i] = true; });
+    return requiredAtLevel_(level).filter(function (i) { return !done[i]; });
+  }
+
+  function curriculumItem_(item) {
+    return DATA.curriculum.find(function (x) { return x.item === item; });
+  }
+
+  /* Assignments a student still owes. A credited exercise has served
+   * its purpose, so it stops counting and stops showing as assigned --
+   * the row in the Assignments tab stays, so un-crediting brings the
+   * flag back, but nothing on screen still calls it outstanding. */
+  function assignedOpenFor_(s) {
+    var done = {};
+    (s.doneItems || []).forEach(function (i) { done[i] = true; });
+    return assignedFor_(s.student).filter(function (i) { return !done[i]; });
   }
 
   function assignedFor_(name) { return (EXTRAS.assignments && EXTRAS.assignments[name]) || []; }
@@ -881,7 +944,7 @@
     var dots = '';
     if (s.bossReady) dots += '<span class="dot boss" title="Boss fight ready"></span>';
     if (needsXp_(s)) dots += '<span class="dot needsxp" title="Needs more XP to advance"></span>';
-    var nAssigned = assignedFor_(s.student).length;
+    var nAssigned = assignedOpenFor_(s).length;
     return '<div class="student-card' + (dots ? ' has-dots' : '') + '" ' +
         'onclick="openStudent(\'' + escAttr(s.student) + '\')">' +
       (dots ? '<div class="card-dots">' + dots + '</div>' : '') +
@@ -1134,8 +1197,10 @@
     var head = '<thead><tr><th class="gx"></th>' + roster.map(function (s) {
       var dot = s.bossReady ? '<span class="gd boss" title="Boss fight ready"></span>'
         : (needsXp_(s) ? '<span class="gd needsxp" title="Needs more XP"></span>' : '');
+      // Bottom-up: dot, level, name. The name sits closest to the boxes.
       return '<th title="' + escAttr(s.student) + '"><div class="gname">' +
-        esc(shortName_(s.student)) + '<span class="gl">Lv ' + s.level + '</span>' + dot +
+        dot + '<span class="gl">Lv ' + s.level + '</span>' +
+        '<span class="gn">' + esc(shortName_(s.student)) + '</span>' +
         '</div></th>';
     }).join('') + '</tr></thead>';
 
@@ -1163,7 +1228,9 @@
             var done = hasItem_(s, c.item);
             var asg = isAssigned_(s.student, c.item);
             var short = boss ? xpShortfall_(s, g.level) : 0;
-            var cls = 'cell' + (done ? ' done' : '') + (asg ? ' assigned' : '') +
+            // Done beats assigned here too -- a green box is finished work,
+            // not outstanding homework.
+            var cls = 'cell' + (done ? ' done' : '') + (asg && !done ? ' assigned' : '') +
               (short && !done ? ' locked' : '');
             return '<td class="gc"><div class="' + cls + '" ' +
               'onclick="gridTap(\'' + escAttr(s.student) + '\', \'' + escAttr(c.item) + '\', ' +
@@ -1189,6 +1256,7 @@
     var s = DATA.students.find(function (x) { return x.student === name; });
     if (!s) return;
     if (gridMode === 'assign') { toggleAssignFor_(name, item); return; }
+    if (!hasItem_(s, item) && !confirmRequirements_(s, item)) return;
     if (hasItem_(s, item)) {
       if (!confirm('Uncheck "' + item + '" for ' + name + '?\n\nThis removes ' + xp + ' XP.')) return;
       showToast('✕ −' + xp + ' XP · ' + name);
@@ -1277,7 +1345,7 @@
 
   function renderSheetHeader() {
     var s = currentStudent;
-    var nAssigned = assignedFor_(s.student).length;
+    var nAssigned = assignedOpenFor_(s).length;
     document.getElementById('sheetName').textContent = s.student;
     document.getElementById('sheetStats').innerHTML =
       '<div class="stat-chip">Level <b>' + s.level + '</b></div>' +
@@ -1425,22 +1493,52 @@
   // anything unlocked). `pinned` marks the copy shown in the Assigned box,
   // which gets no flag button -- you un-assign from the main list.
   function checkRowHtml_(c, done, short, pinned) {
-    var assigned = isAssigned_(currentStudent.student, c.item);
+    // Credited work is no longer "assigned" anywhere on screen.
+    var assigned = !done && isAssigned_(currentStudent.student, c.item);
     var boss = isBoss_(c);
+    var required = !boss && isRequired_(c.item);
+    // On a boss row: how many required exercises this student still owes
+    // at that level. Hidden once the boss itself is credited.
+    var owes = boss ? missingRequiredFor_(currentStudent, c.level).length : 0;
     var fn = done ? 'uncheckItem' : 'checkItem';
     var cls = 'check-row' + (done ? ' done' : '') + (short ? ' locked' : '') +
+      (required ? ' required' : '') +
       (assigned && !pinned ? ' assigned' : '') + (boss ? ' boss' : '');
     return '<div class="' + cls + '" ' +
       'onclick="' + fn + '(\'' + escAttr(c.item) + '\', this, ' + c.xp + ', ' + (short || 0) + ')">' +
       '<span class="check-circle">' + (done ? '✓' : '') + '</span>' +
       '<span class="check-label">' + esc(c.item) + '</span>' +
       (boss ? '<span class="boss-tag">BOSS</span>' : '') +
+      (owes && !done ? '<span class="need-note">needs ' + owes + '</span>' : '') +
       '<span class="xp-badge">' + c.xp + ' XP</span>' +
-      (pinned ? '' :
+      (pinned || boss ? '' :
+        '<button class="req-btn' + (required ? ' on' : '') + '" title="' +
+          (required ? 'Required for this level’s boss — tap to un-require'
+                    : 'Require this before the Level ' + c.level + ' boss') + '" ' +
+          'onclick="event.stopPropagation(); toggleRequired(\'' + escAttr(c.item) + '\')">REQ</button>') +
+      (pinned || done ? '' :
         '<button class="flag-btn' + (assigned ? ' on' : '') + '" title="' +
           (assigned ? 'Assigned — tap to un-assign' : 'Assign this to ' + escAttr(currentStudent.student)) + '" ' +
           'onclick="event.stopPropagation(); toggleAssign(\'' + escAttr(c.item) + '\')">⚑</button>') +
     '</div>';
+  }
+
+  /* Marking an exercise required is a curriculum edit, not a note about
+   * one student -- it changes the gate for the whole band. Flips locally
+   * first so the button responds, then saves. */
+  function toggleRequired(item) {
+    var list = (EXTRAS.required || []).slice();
+    var on = list.indexOf(item) === -1;
+    EXTRAS.required = on ? list.concat([item])
+                         : list.filter(function (i) { return i !== item; });
+    renderAfterTap_();
+    showToast(on ? ('Required for the boss · ' + item) : ('No longer required · ' + item));
+    google.script.run.withSuccessHandler(function (res) {
+      if (!res || !res.ok) { showToast((res && res.error) || 'Not saved'); loadExtras(); }
+    }).withFailureHandler(function (err) {
+      showToast('⚠ Not saved — ' + ((err && (err.message || err)) || 'unknown error'));
+      loadExtras();
+    }).qcSetRequired(item, on);
   }
 
   // Assigning is a sticky note, not credit -- no XP moves, nothing hits the
@@ -1483,12 +1581,28 @@
     if (currentSection === 'exercise') renderChecklist('Exercise');
   }
 
+  /* A boss whose level still has required exercises outstanding. It asks
+   * rather than refuses -- the point is that you can reward a good boss
+   * fight and let them advance anyway. Returns false only if you back out. */
+  function confirmRequirements_(s, item) {
+    var c = curriculumItem_(item);
+    if (!c || String(c.type).toLowerCase() !== 'boss') return true;
+    var miss = missingRequiredFor_(s, c.level);
+    if (!miss.length) return true;
+    return confirm(
+      s.student + ' still owes ' + miss.length + ' required exercise' +
+      (miss.length === 1 ? '' : 's') + ' for Level ' + c.level + ':\n\n' +
+      miss.join('\n') +
+      '\n\nCredit the boss fight anyway and let them advance?');
+  }
+
   // `short` > 0 means this is a boss the student's XP doesn't reach yet.
   // It asks rather than refuses -- there are plenty of good reasons to
   // override (they tested up, the book's XP was wrong, you said so).
   function checkItem(item, row, xp, short) {
     var s = currentStudent;
     if (hasItem_(s, item)) return;
+    if (!confirmRequirements_(s, item)) return;
     if (short > 0 && !confirm(
         s.student + ' is ' + short + ' XP short of the level this boss unlocks.\n\n' +
         'Normally they\'d go back and finish exercises they skipped first.\n\n' +

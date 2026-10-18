@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0f1220">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon-192.png">
   <title>Mallets &amp; Horns</title>
+  <meta charset="utf-8">
   <style>
     :root {
       --bg: #0f1220;
@@ -390,6 +390,25 @@
     }
     .gx .gxp { color: var(--muted); font-size: 11px; font-weight: 700; margin-left: 5px; }
     .gx.gboss { color: var(--accent-boss); font-weight: 700; }
+    /* Required exercises, same light blue as the single-student checklist.
+       The exercise column is sticky and scrolls over the boxes, so the tint
+       has to be opaque -- #1a2d40 is the checklist's rgba(91,200,245,.15)
+       already flattened onto --bg. Read-only here: no REQ button in the
+       grid, because one stray tap while marking off a lesson would silently
+       un-gate a boss for the whole band. */
+    .grid-table td.gx.greq {
+      background: #1a2d40; color: #a5e2fb;
+      box-shadow: inset 3px 0 0 var(--accent-required);
+    }
+    .gx .greqtag {
+      display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 5px;
+      background: var(--accent-required); color: #06293a;
+      font-size: 9px; font-weight: 800; letter-spacing: .04em; vertical-align: 1px;
+    }
+    .gx .gneed {
+      display: inline-block; margin-left: 6px;
+      color: var(--accent-required); font-size: 11px; font-weight: 700;
+    }
     .gall {
       float: right; border: 1px solid var(--border); background: var(--card-2);
       color: var(--muted); border-radius: 6px; font-size: 9.5px; font-weight: 800;
@@ -436,7 +455,7 @@
 <header>
   <!-- Build stamp. Bump it whenever this file changes, so one look at the
        page tells you whether what you're using is what you last deployed. -->
-  <h1>🎺 Mallets &amp; Horns — Quick Credit <span class="build">build 10-07</span></h1>
+  <h1>🎺 Mallets &amp; Horns — Quick Credit <span class="build">build 10-17</span></h1>
   <div class="tabs">
     <div class="tab-btn active" id="tabStudents" onclick="switchTab('students')">Students</div>
     <div class="tab-btn" id="tabLeaderboard" onclick="switchTab('leaderboard')">Leaderboard</div>
@@ -1220,10 +1239,17 @@
       if (!open) return;
       visible.forEach(function (c) {
         var boss = isBoss_(c);
-        body += '<tr><td class="gx' + (boss ? ' gboss' : '') + '">' +
+        var required = !boss && isRequired_(c.item);
+        // On the boss row, how many exercises gate it at this level. That's
+        // a property of the level, not of one student, so it's a count in
+        // the label rather than anything per-cell.
+        var gates = boss ? requiredAtLevel_(g.level).length : 0;
+        body += '<tr><td class="gx' + (boss ? ' gboss' : '') + (required ? ' greq' : '') + '">' +
           '<button class="gall" onclick="gridAll(\'' + escAttr(c.item) + '\', ' + c.xp + ', ' +
             g.level + ', ' + (boss ? 'true' : 'false') + ')">All</button>' +
-          esc(c.item) + '<span class="gxp">' + c.xp + ' XP</span></td>' +
+          esc(c.item) + '<span class="gxp">' + c.xp + ' XP</span>' +
+          (required ? '<span class="greqtag">REQ</span>' : '') +
+          (gates ? '<span class="gneed">gated ×' + gates + '</span>' : '') + '</td>' +
           roster.map(function (s) {
             var done = hasItem_(s, c.item);
             var asg = isAssigned_(s.student, c.item);
@@ -1303,6 +1329,17 @@
           }).join('\n') + '\n\n' +
           (shortOnes.length === 1 ? 'is' : 'are') +
           ' below the level this boss unlocks.\n\nCredit the whole group anyway?')) return;
+      // The same override the single-student path offers, asked once for
+      // the group: without this, "All" on a boss row would walk straight
+      // past the required-exercise gate without saying so.
+      var owing = todo.filter(function (s) { return missingRequiredFor_(s, level).length; });
+      if (owing.length && !confirm(
+          owing.map(function (s) {
+            return s.student + ' (owes ' + missingRequiredFor_(s, level).length + ' required)';
+          }).join('\n') + '\n\n' +
+          (owing.length === 1 ? 'still has' : 'still have') +
+          ' required exercises for Level ' + level +
+          '.\n\nCredit the boss for the whole group anyway?')) return;
     }
     showToast('✓ ' + item + ' · ' + todo.length +
       ' student' + (todo.length === 1 ? '' : 's'));

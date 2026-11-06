@@ -455,7 +455,7 @@
 <header>
   <!-- Build stamp. Bump it whenever this file changes, so one look at the
        page tells you whether what you're using is what you last deployed. -->
-  <h1>🎺 Mallets &amp; Horns — Quick Credit <span class="build">build 11-06a</span></h1>
+  <h1>🎺 Mallets &amp; Horns — Quick Credit <span class="build">build 11-06b</span></h1>
   <div class="tabs">
     <div class="tab-btn active" id="tabStudents" onclick="switchTab('students')">Students</div>
     <div class="tab-btn" id="tabLeaderboard" onclick="switchTab('leaderboard')">Leaderboard</div>
@@ -778,18 +778,22 @@
   // boss gate the first boss of the next level. Same rule as bossSegments_()
   // in Code.js, so Quick Credit, the TV and the student dashboard agree.
   function requiredForBoss_(bossItem) {
-    var req = {}, segs = {}, pending = {}, firstBoss = {}, levels = [];
+    var req = {}, segs = {}, pending = {}, firstBoss = {}, levels = [], partnerOf = {}, prev = null;
     (EXTRAS.required || []).forEach(function (i) { req[i] = true; });
     DATA.curriculum.forEach(function (c) {
       var L = Number(c.level) || 0;
-      if (!L) return;
-      if (isBoss_(c)) {
+      if (!L) { prev = null; return; }
+      var boss = isBoss_(c);
+      if (boss) {
         segs[c.item] = pending[L] || [];
         pending[L] = [];
         if (!firstBoss[L]) { firstBoss[L] = c.item; levels.push(L); }
+        // Back-to-back bosses (#38 + #39) are one combined fight.
+        if (prev && prev.boss && prev.level === L) partnerOf[c.item] = partnerOf[prev.item] || prev.item;
       } else if (req[c.item]) {
         (pending[L] = pending[L] || []).push(c.item);
       }
+      prev = { boss: boss, level: L, item: c.item };
     });
     levels.sort(function (a, b) { return a - b; });
     Object.keys(pending).map(Number).sort(function (a, b) { return a - b; }).forEach(function (L) {
@@ -798,7 +802,7 @@
       if (next === undefined) return;
       segs[firstBoss[next]] = pending[L].concat(segs[firstBoss[next]] || []);
     });
-    return segs[bossItem] || [];
+    return segs[partnerOf[bossItem] || bossItem] || [];
   }
 
   // What this student still owes before THIS boss should count.

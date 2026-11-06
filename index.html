@@ -455,7 +455,7 @@
 <header>
   <!-- Build stamp. Bump it whenever this file changes, so one look at the
        page tells you whether what you're using is what you last deployed. -->
-  <h1>🎺 Mallets &amp; Horns — Quick Credit <span class="build">build 10-17</span></h1>
+  <h1>🎺 Mallets &amp; Horns — Quick Credit <span class="build">build 11-06a</span></h1>
   <div class="tabs">
     <div class="tab-btn active" id="tabStudents" onclick="switchTab('students')">Students</div>
     <div class="tab-btn" id="tabLeaderboard" onclick="switchTab('leaderboard')">Leaderboard</div>
@@ -773,11 +773,39 @@
     });
   }
 
-  // What this student still owes before that level's boss should count.
-  function missingRequiredFor_(s, level) {
+  // The required exercises that gate ONE boss fight: those printed after the
+  // previous boss and before this one. Required exercises after a level's last
+  // boss gate the first boss of the next level. Same rule as bossSegments_()
+  // in Code.js, so Quick Credit, the TV and the student dashboard agree.
+  function requiredForBoss_(bossItem) {
+    var req = {}, segs = {}, pending = {}, firstBoss = {}, levels = [];
+    (EXTRAS.required || []).forEach(function (i) { req[i] = true; });
+    DATA.curriculum.forEach(function (c) {
+      var L = Number(c.level) || 0;
+      if (!L) return;
+      if (isBoss_(c)) {
+        segs[c.item] = pending[L] || [];
+        pending[L] = [];
+        if (!firstBoss[L]) { firstBoss[L] = c.item; levels.push(L); }
+      } else if (req[c.item]) {
+        (pending[L] = pending[L] || []).push(c.item);
+      }
+    });
+    levels.sort(function (a, b) { return a - b; });
+    Object.keys(pending).map(Number).sort(function (a, b) { return a - b; }).forEach(function (L) {
+      if (!pending[L] || !pending[L].length) return;
+      var next = levels.filter(function (x) { return x > L; })[0];
+      if (next === undefined) return;
+      segs[firstBoss[next]] = pending[L].concat(segs[firstBoss[next]] || []);
+    });
+    return segs[bossItem] || [];
+  }
+
+  // What this student still owes before THIS boss should count.
+  function missingRequiredFor_(s, level, bossItem) {
     var done = {};
     (s.doneItems || []).forEach(function (i) { done[i] = true; });
-    return requiredAtLevel_(level).filter(function (i) { return !done[i]; });
+    return requiredForBoss_(bossItem).filter(function (i) { return !done[i]; });
   }
 
   function curriculumItem_(item) {
@@ -1243,7 +1271,7 @@
         // On the boss row, how many exercises gate it at this level. That's
         // a property of the level, not of one student, so it's a count in
         // the label rather than anything per-cell.
-        var gates = boss ? requiredAtLevel_(g.level).length : 0;
+        var gates = boss ? requiredForBoss_(c.item).length : 0;
         body += '<tr><td class="gx' + (boss ? ' gboss' : '') + (required ? ' greq' : '') + '">' +
           '<button class="gall" onclick="gridAll(\'' + escAttr(c.item) + '\', ' + c.xp + ', ' +
             g.level + ', ' + (boss ? 'true' : 'false') + ')">All</button>' +
@@ -1332,13 +1360,13 @@
       // The same override the single-student path offers, asked once for
       // the group: without this, "All" on a boss row would walk straight
       // past the required-exercise gate without saying so.
-      var owing = todo.filter(function (s) { return missingRequiredFor_(s, level).length; });
+      var owing = todo.filter(function (s) { return missingRequiredFor_(s, level, item).length; });
       if (owing.length && !confirm(
           owing.map(function (s) {
-            return s.student + ' (owes ' + missingRequiredFor_(s, level).length + ' required)';
+            return s.student + ' (owes ' + missingRequiredFor_(s, level, item).length + ' required)';
           }).join('\n') + '\n\n' +
           (owing.length === 1 ? 'still has' : 'still have') +
-          ' required exercises for Level ' + level +
+          ' required exercises before this boss' +
           '.\n\nCredit the boss for the whole group anyway?')) return;
     }
     showToast('✓ ' + item + ' · ' + todo.length +
@@ -1536,7 +1564,7 @@
     var required = !boss && isRequired_(c.item);
     // On a boss row: how many required exercises this student still owes
     // at that level. Hidden once the boss itself is credited.
-    var owes = boss ? missingRequiredFor_(currentStudent, c.level).length : 0;
+    var owes = boss ? missingRequiredFor_(currentStudent, c.level, c.item).length : 0;
     var fn = done ? 'uncheckItem' : 'checkItem';
     var cls = 'check-row' + (done ? ' done' : '') + (short ? ' locked' : '') +
       (required ? ' required' : '') +
@@ -1624,11 +1652,11 @@
   function confirmRequirements_(s, item) {
     var c = curriculumItem_(item);
     if (!c || String(c.type).toLowerCase() !== 'boss') return true;
-    var miss = missingRequiredFor_(s, c.level);
+    var miss = missingRequiredFor_(s, c.level, item);
     if (!miss.length) return true;
     return confirm(
       s.student + ' still owes ' + miss.length + ' required exercise' +
-      (miss.length === 1 ? '' : 's') + ' for Level ' + c.level + ':\n\n' +
+      (miss.length === 1 ? '' : 's') + ' before this boss (Level ' + c.level + '):\n\n' +
       miss.join('\n') +
       '\n\nCredit the boss fight anyway and let them advance?');
   }
